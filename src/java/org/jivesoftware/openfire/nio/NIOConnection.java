@@ -28,14 +28,13 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.UnknownHostException;
-import java.nio.charset.Charset;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
 import java.util.concurrent.locks.ReentrantLock;
 
-import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.SSLSession;
@@ -51,11 +50,10 @@ import org.jivesoftware.openfire.Connection;
 import org.jivesoftware.openfire.ConnectionCloseListener;
 import org.jivesoftware.openfire.PacketDeliverer;
 import org.jivesoftware.openfire.auth.UnauthorizedException;
-import org.jivesoftware.openfire.net.ClientTrustManager;
-import org.jivesoftware.openfire.net.SSLConfig;
-import org.jivesoftware.openfire.net.SSLJiveKeyManagerFactory;
-import org.jivesoftware.openfire.net.SSLJiveTrustManagerFactory;
-import org.jivesoftware.openfire.net.ServerTrustManager;
+import org.jivesoftware.openfire.keystore.IdentityStoreConfig;
+import org.jivesoftware.openfire.keystore.Purpose;
+import org.jivesoftware.openfire.keystore.TrustStoreConfig;
+import org.jivesoftware.openfire.net.*;
 import org.jivesoftware.openfire.session.ConnectionSettings;
 import org.jivesoftware.openfire.session.LocalSession;
 import org.jivesoftware.openfire.session.Session;
@@ -78,11 +76,6 @@ public class NIOConnection implements Connection {
 	private static final Logger Log = LoggerFactory.getLogger(NIOConnection.class);
 
     public enum State { RUNNING, CLOSING, CLOSED }
-
-    /**
-     * The utf-8 charset for decoding and encoding XMPP packet streams.
-     */
-    public static final String CHARSET = "UTF-8";
 
     private LocalSession session;
     private IoSession ioSession;
@@ -118,7 +111,7 @@ public class NIOConnection implements Connection {
      * keep this flag to avoid using the connection between #close was used and the socket is actually
      * closed.
      */
-    private State state;
+    private volatile State state;
     
     /**
      * Lock used to ensure the integrity of the underlying IoSession (refer to
@@ -137,6 +130,7 @@ public class NIOConnection implements Connection {
         state = State.RUNNING;
     }
 
+    @Override
     public boolean validate() {
         if (isClosed()) {
             return false;
@@ -145,6 +139,7 @@ public class NIOConnection implements Connection {
         return !isClosed();
     }
 
+    @Override
     public void registerCloseListener(ConnectionCloseListener listener, Object ignore) {
         if (closeListener != null) {
             throw new IllegalStateException("Close listener already configured");
@@ -157,33 +152,41 @@ public class NIOConnection implements Connection {
         }
     }
 
+    @Override
     public void removeCloseListener(ConnectionCloseListener listener) {
         if (closeListener == listener) {
             closeListener = null;
         }
     }
 
+    @Override
     public byte[] getAddress() throws UnknownHostException {
         final SocketAddress remoteAddress = ioSession.getRemoteAddress();
+        if (remoteAddress == null) throw new UnknownHostException();
         final InetSocketAddress socketAddress = (InetSocketAddress) remoteAddress;
         final InetAddress address = socketAddress.getAddress();
         return address.getAddress();
     }
 
+    @Override
     public String getHostAddress() throws UnknownHostException {
         final SocketAddress remoteAddress = ioSession.getRemoteAddress();
+        if (remoteAddress == null) throw new UnknownHostException();
         final InetSocketAddress socketAddress = (InetSocketAddress) remoteAddress;
         final InetAddress inetAddress = socketAddress.getAddress();
         return inetAddress.getHostAddress();
     }
 
+    @Override
     public String getHostName() throws UnknownHostException {
         final SocketAddress remoteAddress = ioSession.getRemoteAddress();
+        if (remoteAddress == null) throw new UnknownHostException();
         final InetSocketAddress socketAddress = (InetSocketAddress) remoteAddress;
         final InetAddress inetAddress = socketAddress.getAddress();
         return inetAddress.getHostName();
     }
 
+    @Override
     public Certificate[] getLocalCertificates() {
         SSLSession sslSession = (SSLSession) ioSession.getAttribute(SslFilter.SSL_SESSION);
         if (sslSession != null) {
@@ -192,6 +195,7 @@ public class NIOConnection implements Connection {
         return new Certificate[0];
     }
 
+    @Override
     public Certificate[] getPeerCertificates() {
         try {
             SSLSession sslSession = (SSLSession) ioSession.getAttribute(SslFilter.SSL_SESSION);
@@ -207,22 +211,27 @@ public class NIOConnection implements Connection {
         return new Certificate[0];
     }
 
+    @Override
     public void setUsingSelfSignedCertificate(boolean isSelfSigned) {
         this.usingSelfSignedCertificate = isSelfSigned;
     }
 
+    @Override
     public boolean isUsingSelfSignedCertificate() {
         return usingSelfSignedCertificate;
     }
 
+    @Override
     public PacketDeliverer getPacketDeliverer() {
         return backupDeliverer;
     }
 
+    @Override
     public void close() {
         close( false );
     }
 
+    @Override
     public void close( boolean peerIsKnownToBeDisconnected )
     {
         boolean notifyClose = false;
@@ -275,6 +284,7 @@ public class NIOConnection implements Connection {
         }
     }
 
+    @Override
     public void systemShutdown() {
         deliverRawText("<stream:error><system-shutdown " +
                 "xmlns='urn:ietf:params:xml:ns:xmpp-streams'/></stream:error>");
@@ -295,29 +305,25 @@ public class NIOConnection implements Connection {
         }
     }
 
+    @Override
     public void init(LocalSession owner) {
         session = owner;
     }
 
-    public synchronized boolean isClosed() {
+    @Override
+    public boolean isClosed() {
         return state == State.CLOSED;
     }
 
+    @Override
     public boolean isSecure() {
         return ioSession.getFilterChain().contains(TLS_FILTER_NAME);
     }
 
+    @Override
     public void deliver(Packet packet) throws UnauthorizedException {
-        if (isClosed()) {
-        	// OF-857: Do not allow the backup deliverer to recurse
-        	if (backupDeliverer == null) {
-        		Log.error("Failed to deliver packet: " + packet.toXML());
-        		throw new IllegalStateException("Connection closed");
-        	}
-        	// attempt to deliver via backup only once
-        	PacketDeliverer backup = backupDeliverer;
-            backupDeliverer = null;
-            backup.deliver(packet);
+        if (state != State.RUNNING) {
+        	backupDeliverer.deliver(packet);
         }
         else {
             boolean errorDelivering = false;
@@ -360,6 +366,7 @@ public class NIOConnection implements Connection {
         }
     }
 
+    @Override
     public void deliverRawText(String text) {
         if (state != State.CLOSED) {
             boolean errorDelivering = false;
@@ -368,7 +375,7 @@ public class NIOConnection implements Connection {
             try {
                 //Charset charset = Charset.forName(CHARSET);
                 //buffer.putString(text, charset.newEncoder());
-                buffer.put(text.getBytes(CHARSET));
+                buffer.put(text.getBytes(StandardCharsets.UTF_8));
                 if (flashClient) {
                     buffer.put((byte) '\0');
                 }
@@ -397,36 +404,40 @@ public class NIOConnection implements Connection {
         }
     }
 
+    @Override
     public void startTLS(boolean clientMode, String remoteServer, ClientAuth authentication) throws Exception {
-        boolean c2s = (remoteServer == null);
-        KeyStore ksKeys = SSLConfig.getKeyStore();
-        String keypass = SSLConfig.getKeyPassword();
+        final boolean isClientToServer = (remoteServer == null);
 
-        KeyStore ksTrust = (c2s ? SSLConfig.getc2sTrustStore() : SSLConfig.gets2sTrustStore() );
-        String trustpass = (c2s ? SSLConfig.getc2sTrustPassword() : SSLConfig.gets2sTrustPassword() );
-        if (c2s)  Log.debug("NIOConnection: startTLS: using c2s");
-        else Log.debug("NIOConnection: startTLS: using s2s");
-        // KeyManager's decide which key material to use.
-        KeyManager[] km = SSLJiveKeyManagerFactory.getKeyManagers(ksKeys, keypass);
+        Log.debug( "StartTLS: using {}", isClientToServer ? "c2s" : "s2s" );
 
-        // TrustManager's decide whether to allow connections.
-        TrustManager[] tm = SSLJiveTrustManagerFactory.getTrustManagers(ksTrust, trustpass);
+        final SSLConfig sslConfig = SSLConfig.getInstance();
+        final TrustStoreConfig storeConfig;
+        if (isClientToServer) {
+            storeConfig = (TrustStoreConfig) sslConfig.getStoreConfig( Purpose.SOCKETBASED_C2S_TRUSTSTORE );
+        } else {
+            storeConfig = (TrustStoreConfig) sslConfig.getStoreConfig( Purpose.SOCKETBASED_S2S_TRUSTSTORE );
+        }
 
+        final TrustManager[] tm;
         if (clientMode || authentication == ClientAuth.needed || authentication == ClientAuth.wanted) {
             // We might need to verify a certificate from our peer, so get different TrustManager[]'s
-            if(c2s) {
+            final KeyStore ksTrust = storeConfig.getStore();
+            if(isClientToServer) {
                 // Check if we can trust certificates presented by the client
                 tm = new TrustManager[]{new ClientTrustManager(ksTrust)};
             } else {
                 // Check if we can trust certificates presented by the server
                 tm = new TrustManager[]{new ServerTrustManager(remoteServer, ksTrust, this)};
             }
+        } else {
+            tm = storeConfig.getTrustManagers();
         }
 
         String algorithm = JiveGlobals.getProperty(ConnectionSettings.Client.TLS_ALGORITHM, "TLS");
-        SSLContext tlsContext = SSLContext.getInstance(algorithm);
+        SSLContext tlsContext = SSLContext.getInstance( algorithm );
 
-        tlsContext.init(km, tm, null);
+        final IdentityStoreConfig identityStoreConfig = (IdentityStoreConfig) sslConfig.getStoreConfig( Purpose.SOCKETBASED_IDENTITYSTORE );
+        tlsContext.init( identityStoreConfig.getKeyManagers(), tm, null);
 
         SslFilter filter = new SslFilter(tlsContext);
         filter.setUseClientMode(clientMode);
@@ -446,7 +457,7 @@ public class NIOConnection implements Connection {
             // good
             filter.setWantClientAuth(true);
         }
-        ioSession.getFilterChain().addAfter(EXECUTOR_FILTER_NAME, TLS_FILTER_NAME, filter);
+        ioSession.getFilterChain().addBefore(EXECUTOR_FILTER_NAME, TLS_FILTER_NAME, filter);
         ioSession.setAttribute(SslFilter.DISABLE_ENCRYPTION_ONCE, Boolean.TRUE);
 
         if (!clientMode) {
@@ -455,6 +466,7 @@ public class NIOConnection implements Connection {
         }
     }
 
+    @Override
     public void addCompression() {
         IoFilterChain chain = ioSession.getFilterChain();
         String baseFilter = EXECUTOR_FILTER_NAME;
@@ -464,56 +476,69 @@ public class NIOConnection implements Connection {
         chain.addAfter(baseFilter, COMPRESSION_FILTER_NAME, new CompressionFilter(true, false, CompressionFilter.COMPRESSION_MAX));
     }
 
+    @Override
     public void startCompression() {
         CompressionFilter ioFilter = (CompressionFilter) ioSession.getFilterChain().get(COMPRESSION_FILTER_NAME);
         ioFilter.setCompressOutbound(true);
     }
 
+    @Override
     public boolean isFlashClient() {
         return flashClient;
     }
 
+    @Override
     public void setFlashClient(boolean flashClient) {
         this.flashClient = flashClient;
     }
 
+    @Override
     public int getMajorXMPPVersion() {
         return majorVersion;
     }
 
+    @Override
     public int getMinorXMPPVersion() {
         return minorVersion;
     }
 
+    @Override
     public void setXMPPVersion(int majorVersion, int minorVersion) {
         this.majorVersion = majorVersion;
         this.minorVersion = minorVersion;
     }
 
+    @Override
     public String getLanguage() {
         return language;
     }
 
+    @Override
     public void setLanaguage(String language) {
         this.language = language;
     }
 
+    @Override
     public boolean isCompressed() {
         return ioSession.getFilterChain().contains(COMPRESSION_FILTER_NAME);
     }
 
+    @Override
     public CompressionPolicy getCompressionPolicy() {
         return compressionPolicy;
     }
 
+    @Override
     public void setCompressionPolicy(CompressionPolicy compressionPolicy) {
         this.compressionPolicy = compressionPolicy;
     }
 
+    @Override
     public TLSPolicy getTlsPolicy() {
         return tlsPolicy;
     }
 
+    @Override
     public void setTlsPolicy(TLSPolicy tlsPolicy) {
         this.tlsPolicy = tlsPolicy;
     }
@@ -527,7 +552,7 @@ public class NIOConnection implements Connection {
 
         @Override
 		protected CharsetEncoder initialValue() {
-            return Charset.forName(CHARSET).newEncoder()
+            return StandardCharsets.UTF_8.newEncoder()
 				.onMalformedInput(CodingErrorAction.REPORT)
 				.onUnmappableCharacter(CodingErrorAction.REPORT);
         }

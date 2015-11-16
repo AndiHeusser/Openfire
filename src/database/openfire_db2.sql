@@ -3,6 +3,10 @@
 
 CREATE TABLE ofUser (
   username              VARCHAR(64)     NOT NULL,
+  storedKey             VARCHAR(32),
+  serverKey             VARCHAR(32),
+  salt                  VARCHAR(32),
+  iterations            INTEGER,
   plainPassword         VARCHAR(32),
   encryptedPassword     VARCHAR(255),
   name                  VARCHAR(100),
@@ -386,7 +390,7 @@ INSERT INTO ofID (idType, id) VALUES (19, 1);
 INSERT INTO ofID (idType, id) VALUES (23, 1);
 INSERT INTO ofID (idType, id) VALUES (26, 2);
 
-INSERT INTO ofVersion (name, version) VALUES ('openfire', 21);
+INSERT INTO ofVersion (name, version) VALUES ('openfire', 22);
 
 -- Entry for admin user
 INSERT INTO ofUser (username, plainPassword, name, email, creationDate, modificationDate)

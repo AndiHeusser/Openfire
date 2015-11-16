@@ -38,9 +38,10 @@ public class JicofoPlugin
    	private File pluginDirectory;
 
 
-    public void initializePlugin(PluginManager manager, File pluginDirectory)
+    public void initializePlugin(ComponentManager componentManager, PluginManager manager, File pluginDirectory)
     {
 		boolean added = false;
+		this.componentManager = componentManager;
 
         try
         {
@@ -57,7 +58,8 @@ public class JicofoPlugin
 			{
 				Log.info("JicofoPlugin - using focus " + focusUserJid + ":" + hostName);
 
-				//System.setProperty("org.jitsi.videobridge.ofmeet.audio.mixer", JiveGlobals.getProperty("org.jitsi.videobridge.ofmeet.audio.mixer", "false"));
+				System.setProperty("org.jitsi.videobridge.ofmeet.audio.mixer", JiveGlobals.getProperty("org.jitsi.videobridge.ofmeet.audio.mixer", "false"));
+				System.setProperty("org.jitsi.videobridge.ofmeet.sip.enabled", JiveGlobals.getProperty("org.jitsi.videobridge.ofmeet.sip.enabled", "false"));
 
 				System.setProperty("net.java.sip.communicator.service.gui.ALWAYS_TRUST_MODE_ENABLED",  "true");
 				System.setProperty(FocusManager.HOSTNAME_PNAME, hostName);
@@ -66,7 +68,6 @@ public class JicofoPlugin
 				System.setProperty(FocusManager.FOCUS_USER_NAME_PNAME, (new JID(focusUserJid)).getNode());
 				System.setProperty(FocusManager.FOCUS_USER_PASSWORD_PNAME, focusUserPassword);
 
-				ComponentManager componentManager = ComponentManagerFactory.getComponentManager();
 				String subdomain = "ofmeet-focus";
 				FocusComponent component = new FocusComponent(false);
 				componentManager.addComponent(subdomain, component);

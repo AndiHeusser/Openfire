@@ -206,6 +206,7 @@ public class LocalComponentSession extends LocalSession implements ComponentSess
         component.deliver(packet);
     }
 
+    @Override
     public ExternalComponent getExternalComponent() {
         return component;
     }
@@ -277,7 +278,7 @@ public class LocalComponentSession extends LocalSession implements ComponentSess
          * Keeps track of the IQ (get/set) packets that were sent from a given component's connection. This
          * information will be used to ensure that the IQ reply will be sent to the same component's connection.
          */
-        private static final Map<String, LocalExternalComponent> iqs = new HashMap<String, LocalExternalComponent>();
+        private static final Map<String, LocalExternalComponent> iqs = new HashMap<>();
 
         private LocalComponentSession session;
         private Connection connection;
@@ -288,7 +289,7 @@ public class LocalComponentSession extends LocalSession implements ComponentSess
          * List of subdomains that were binded for this component. The list will include
          * the initial subdomain.
          */
-        private List<String> subdomains = new ArrayList<String>();
+        private List<String> subdomains = new ArrayList<>();
 
 
         public LocalExternalComponent(LocalComponentSession session, Connection connection) {
@@ -296,6 +297,7 @@ public class LocalComponentSession extends LocalSession implements ComponentSess
             this.connection = connection;
         }
 
+        @Override
         public void processPacket(Packet packet) {
             if (packet instanceof IQ) {
                 IQ iq = (IQ) packet;
@@ -334,34 +336,42 @@ public class LocalComponentSession extends LocalSession implements ComponentSess
             }
         }
 
+        @Override
         public String getName() {
             return name;
         }
 
+        @Override
         public String getDescription() {
             return category + " - " + type;
         }
 
+        @Override
         public void setName(String name) {
             this.name = name;
         }
 
+        @Override
         public String getType() {
             return type;
         }
 
+        @Override
         public void setType(String type) {
             this.type = type;
         }
 
+        @Override
         public String getCategory() {
             return category;
         }
 
+        @Override
         public void setCategory(String category) {
             this.category = category;
         }
 
+        @Override
         public String getInitialSubdomain() {
             if (subdomains.isEmpty()) {
                 return null;
@@ -373,21 +383,25 @@ public class LocalComponentSession extends LocalSession implements ComponentSess
             subdomains.add(subdomain);
         }
 
+        @Override
         public Collection<String> getSubdomains() {
             return subdomains;
         }
 
+        @Override
         public void initialize(JID jid, ComponentManager componentManager) {
             addSubdomain(jid.toString());
         }
 
+        @Override
         public void start() {
         }
 
+        @Override
         public void shutdown() {
             // Remove tracking of IQ packets sent from this component
             synchronized (iqs) {
-                List<String> toRemove = new ArrayList<String>();
+                List<String> toRemove = new ArrayList<>();
                 for (Map.Entry<String,LocalExternalComponent> entry : iqs.entrySet()) {
                     if (entry.getValue() == this) {
                         toRemove.add(entry.getKey());

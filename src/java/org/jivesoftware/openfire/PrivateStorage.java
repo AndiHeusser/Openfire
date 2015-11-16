@@ -73,7 +73,7 @@ public class PrivateStorage extends BasicModule implements UserEventListener {
     /**
      * Pool of SAX Readers. SAXReader is not thread safe so we need to have a pool of readers.
      */
-    private BlockingQueue<SAXReader> xmlReaders = new LinkedBlockingQueue<SAXReader>(POOL_SIZE);
+    private BlockingQueue<SAXReader> xmlReaders = new LinkedBlockingQueue<>(POOL_SIZE);
 
     /**
      * Constructs a new PrivateStore instance.
@@ -196,10 +196,12 @@ public class PrivateStorage extends BasicModule implements UserEventListener {
         return data;
     }
 
+    @Override
     public void userCreated(User user, Map params) {
         //Do nothing
     }
 
+    @Override
     public void userDeleting(User user, Map params) {
         // Delete all private properties of the user
         Connection con = null;
@@ -218,6 +220,7 @@ public class PrivateStorage extends BasicModule implements UserEventListener {
         }
     }
 
+    @Override
     public void userModified(User user, Map params) {
         //Do nothing
     }

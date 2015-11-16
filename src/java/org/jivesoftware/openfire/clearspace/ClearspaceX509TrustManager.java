@@ -63,6 +63,7 @@ public class ClearspaceX509TrustManager implements X509TrustManager {
     /**
      * @see javax.net.ssl.X509TrustManager#checkClientTrusted(X509Certificate[],String authType)
      */
+    @Override
     public void checkClientTrusted(X509Certificate[] certificates, String authType) throws CertificateException {
         // Do nothing. We are the client so we are not testing certificates from clients
     }
@@ -70,6 +71,7 @@ public class ClearspaceX509TrustManager implements X509TrustManager {
     /**
      * @see javax.net.ssl.X509TrustManager#checkServerTrusted(X509Certificate[],String authType)
      */
+    @Override
     public void checkServerTrusted(X509Certificate[] x509Certificates, String authType) throws CertificateException {
         // Flag that indicates if certificates of the remote server should be validated. Disabling
         // certificate validation is not recommended for production environments.
@@ -77,7 +79,7 @@ public class ClearspaceX509TrustManager implements X509TrustManager {
         if (verify) {
             int nSize = x509Certificates.length;
 
-            List<String> peerIdentities = CertificateManager.getPeerIdentities(x509Certificates[0]);
+            List<String> peerIdentities = CertificateManager.getServerIdentities(x509Certificates[0]);
 
             if (getBooleanProperty("clearspace.certificate.verify.chain", true)) {
                 // Working down the chain, for every certificate in the chain,
@@ -172,6 +174,7 @@ public class ClearspaceX509TrustManager implements X509TrustManager {
     /**
      * @see javax.net.ssl.X509TrustManager#getAcceptedIssuers()
      */
+    @Override
     public X509Certificate[] getAcceptedIssuers() {
         if (getBooleanProperty("clearspace.certificate.accept-selfsigned", false)) {
             // Answer an empty list since we accept any issuer

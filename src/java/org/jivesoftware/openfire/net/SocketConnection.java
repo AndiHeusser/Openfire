@@ -27,6 +27,7 @@ import java.io.Writer;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.nio.channels.Channels;
+import java.nio.charset.StandardCharsets;
 import java.security.cert.Certificate;
 import java.util.Collection;
 import java.util.Date;
@@ -65,13 +66,8 @@ public class SocketConnection implements Connection {
 
 	private static final Logger Log = LoggerFactory.getLogger(SocketConnection.class);
 
-    /**
-     * The utf-8 charset for decoding and encoding XMPP packet streams.
-     */
-    public static final String CHARSET = "UTF-8";
-
     private static Map<SocketConnection, String> instances =
-            new ConcurrentHashMap<SocketConnection, String>();
+            new ConcurrentHashMap<>();
 
     /**
      * Milliseconds a connection has to be idle to be closed. Timeout is disabled by default. It's
@@ -85,7 +81,7 @@ public class SocketConnection implements Connection {
     private long idleTimeout = -1;
 
     final private Map<ConnectionCloseListener, Object> listeners =
-            new HashMap<ConnectionCloseListener, Object>();
+            new HashMap<>();
 
     private Socket socket;
     private SocketReader socketReader;
@@ -145,11 +141,11 @@ public class SocketConnection implements Connection {
         // DANIELE: Modify socket to use channel
         if (socket.getChannel() != null) {
             writer = Channels.newWriter(
-                    ServerTrafficCounter.wrapWritableChannel(socket.getChannel()), CHARSET);
+                    ServerTrafficCounter.wrapWritableChannel(socket.getChannel()), StandardCharsets.UTF_8.newEncoder(), -1);
         }
         else {
             writer = new BufferedWriter(new OutputStreamWriter(
-                    ServerTrafficCounter.wrapOutputStream(socket.getOutputStream()), CHARSET));
+                    ServerTrafficCounter.wrapOutputStream(socket.getOutputStream()), StandardCharsets.UTF_8));
         }
         this.backupDeliverer = backupDeliverer;
         xmlSerializer = new XMLSocketWriter(writer, this);
@@ -168,6 +164,7 @@ public class SocketConnection implements Connection {
         return tlsStreamHandler;
     }
 
+    @Override
     public void startTLS(boolean clientMode, String remoteServer, ClientAuth authentication) throws IOException {
         if (!secure) {
             secure = true;
@@ -181,15 +178,17 @@ public class SocketConnection implements Connection {
             // Start handshake
             tlsStreamHandler.start();
             // Use new wrapped writers
-            writer = new BufferedWriter(new OutputStreamWriter(tlsStreamHandler.getOutputStream(), CHARSET));
+            writer = new BufferedWriter(new OutputStreamWriter(tlsStreamHandler.getOutputStream(), StandardCharsets.UTF_8));
             xmlSerializer = new XMLSocketWriter(writer, this);
         }
     }
 
+    @Override
     public void addCompression() {
         // WARNING: We do not support adding compression for incoming traffic but not for outgoing traffic.
     }
 
+    @Override
     public void startCompression() {
         compressed = true;
 
@@ -199,13 +198,13 @@ public class SocketConnection implements Connection {
                         ServerTrafficCounter.wrapOutputStream(socket.getOutputStream()),
                         JZlib.Z_BEST_COMPRESSION);
                 out.setFlushMode(JZlib.Z_PARTIAL_FLUSH);
-                writer = new BufferedWriter(new OutputStreamWriter(out, CHARSET));
+                writer = new BufferedWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8));
                 xmlSerializer = new XMLSocketWriter(writer, this);
             }
             else {
                 ZOutputStream out = new ZOutputStream(tlsStreamHandler.getOutputStream(), JZlib.Z_BEST_COMPRESSION);
                 out.setFlushMode(JZlib.Z_PARTIAL_FLUSH);
-                writer = new BufferedWriter(new OutputStreamWriter(out, CHARSET));
+                writer = new BufferedWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8));
                 xmlSerializer = new XMLSocketWriter(writer, this);
             }
         } catch (IOException e) {
@@ -215,6 +214,7 @@ public class SocketConnection implements Connection {
         }
     }
 
+    @Override
     public boolean validate() {
         if (isClosed()) {
             return false;
@@ -242,10 +242,12 @@ public class SocketConnection implements Connection {
         return !isClosed();
     }
 
+    @Override
     public void init(LocalSession owner) {
         session = owner;
     }
 
+    @Override
     public void registerCloseListener(ConnectionCloseListener listener, Object handbackMessage) {
         if (isClosed()) {
             listener.onConnectionClose(handbackMessage);
@@ -255,18 +257,22 @@ public class SocketConnection implements Connection {
         }
     }
 
+    @Override
     public void removeCloseListener(ConnectionCloseListener listener) {
         listeners.remove(listener);
     }
 
+    @Override
     public byte[] getAddress() throws UnknownHostException {
         return socket.getInetAddress().getAddress();
     }
 
+    @Override
     public String getHostAddress() throws UnknownHostException {
         return socket.getInetAddress().getHostAddress();
     }
 
+    @Override
     public String getHostName() throws UnknownHostException {
         return socket.getInetAddress().getHostName();
     }
@@ -299,6 +305,7 @@ public class SocketConnection implements Connection {
         return writer;
     }
 
+    @Override
     public boolean isClosed() {
         if (session == null) {
             return socket.isClosed();
@@ -306,14 +313,17 @@ public class SocketConnection implements Connection {
         return session.getStatus() == Session.STATUS_CLOSED;
     }
 
+    @Override
     public boolean isSecure() {
         return secure;
     }
 
+    @Override
     public boolean isCompressed() {
         return compressed;
     }
 
+    @Override
     public TLSPolicy getTlsPolicy() {
         return tlsPolicy;
     }
@@ -327,10 +337,12 @@ public class SocketConnection implements Connection {
      *
      * @param tlsPolicy whether TLS is mandatory, optional or is disabled.
      */
+    @Override
     public void setTlsPolicy(TLSPolicy tlsPolicy) {
         this.tlsPolicy = tlsPolicy;
     }
 
+    @Override
     public CompressionPolicy getCompressionPolicy() {
         return compressionPolicy;
     }
@@ -340,6 +352,7 @@ public class SocketConnection implements Connection {
      *
      * @param compressionPolicy whether Compression is enabled or is disabled.
      */
+    @Override
     public void setCompressionPolicy(CompressionPolicy compressionPolicy) {
         this.compressionPolicy = compressionPolicy;
     }
@@ -360,10 +373,12 @@ public class SocketConnection implements Connection {
         this.idleTimeout = timeout;
     }
 
+    @Override
     public int getMajorXMPPVersion() {
         return majorVersion;
     }
 
+    @Override
     public int getMinorXMPPVersion() {
         return minorVersion;
     }
@@ -376,11 +391,13 @@ public class SocketConnection implements Connection {
      * @param majorVersion the major version.
      * @param minorVersion the minor version.
      */
+    @Override
     public void setXMPPVersion(int majorVersion, int minorVersion) {
         this.majorVersion = majorVersion;
         this.minorVersion = minorVersion;
     }
 
+    @Override
     public String getLanguage() {
         return language;
     }
@@ -390,10 +407,12 @@ public class SocketConnection implements Connection {
      *
      * @param language the language code.
      */
+    @Override
     public void setLanaguage(String language) {
         this.language = language;
     }
 
+    @Override
     public boolean isFlashClient() {
         return flashClient;
     }
@@ -406,10 +425,12 @@ public class SocketConnection implements Connection {
      *
      * @param flashClient true if the if the connection is a flash client.
      */
+    @Override
     public void setFlashClient(boolean flashClient) {
         this.flashClient = flashClient;
     }
 
+    @Override
     public Certificate[] getLocalCertificates() {
         if (tlsStreamHandler != null) {
             return tlsStreamHandler.getSSLSession().getLocalCertificates();
@@ -417,6 +438,7 @@ public class SocketConnection implements Connection {
         return new Certificate[0];
     }
 
+    @Override
     public Certificate[] getPeerCertificates() {
         if (tlsStreamHandler != null) {
             try {
@@ -429,22 +451,27 @@ public class SocketConnection implements Connection {
         return new Certificate[0];
     }
 
+    @Override
     public void setUsingSelfSignedCertificate(boolean isSelfSigned) {
         this.usingSelfSignedCertificate = isSelfSigned;
     }
 
+    @Override
     public boolean isUsingSelfSignedCertificate() {
         return usingSelfSignedCertificate;
     }
 
+    @Override
     public PacketDeliverer getPacketDeliverer() {
         return backupDeliverer;
     }
 
+    @Override
     public void close() {
         close( false );
     }
 
+    @Override
     public void close( boolean peerIsKnownToBeDisconnected ) {
         boolean wasClosed = false;
         synchronized (this) {
@@ -492,6 +519,7 @@ public class SocketConnection implements Connection {
         }
     }
 
+    @Override
     public void systemShutdown() {
         deliverRawText("<stream:error><system-shutdown " +
                 "xmlns='urn:ietf:params:xml:ns:xmpp-streams'/></stream:error>");
@@ -586,6 +614,7 @@ public class SocketConnection implements Connection {
         }
     }
 
+    @Override
     public void deliver(Packet packet) throws UnauthorizedException, PacketException {
         if (isClosed()) {
             backupDeliverer.deliver(packet);
@@ -623,6 +652,7 @@ public class SocketConnection implements Connection {
         }
     }
 
+    @Override
     public void deliverRawText(String text) {
         if (!isClosed()) {
             boolean errorDelivering = false;

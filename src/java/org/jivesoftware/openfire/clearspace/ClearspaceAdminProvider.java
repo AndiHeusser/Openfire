@@ -54,13 +54,14 @@ public class ClearspaceAdminProvider implements AdminProvider {
      * The clearspace provider pulls the admin list from the userPermissions web service
      * @see org.jivesoftware.openfire.admin.AdminProvider#getAdmins()
      */
+    @Override
     public List<JID> getAdmins() {
         try {
             String path = PERMISSION_URL_PREFIX + "userPermissions/"+SYSTEM_ADMIN_PERM+"/true";
             Log.debug("ClearspaceAdminProvider: permissions query url is: "+path);
             Element element = ClearspaceManager.getInstance().executeRequest(GET, path);
 
-            List<JID> admins = new ArrayList<JID>();
+            List<JID> admins = new ArrayList<>();
             for (String idStr : parseStringArray(element)) {
                 Log.debug("Admin provider got ID number "+idStr);
                 Long id = Long.valueOf(idStr);
@@ -77,7 +78,7 @@ public class ClearspaceAdminProvider implements AdminProvider {
         }
         catch (ConnectionException e) {
             Log.error(e.getMessage(), e);
-            return new ArrayList<JID>();
+            return new ArrayList<>();
         }
         catch (Exception e) {
             // It is not supported exception, wrap it into an UnsupportedOperationException
@@ -89,6 +90,7 @@ public class ClearspaceAdminProvider implements AdminProvider {
      * The clearspace provider does not allow setting admin lists from this interface
      * @see org.jivesoftware.openfire.admin.AdminProvider#setAdmins(java.util.List)  
      */
+    @Override
     public void setAdmins(List<JID> admins) {
         // Silently do nothing.  This shouldn't come up, but more inportantly, we don't want to bother Clearspace.
     }
@@ -97,6 +99,7 @@ public class ClearspaceAdminProvider implements AdminProvider {
      * The clearspace provider is read only
      * @see org.jivesoftware.openfire.admin.AdminProvider#isReadOnly()
      */
+    @Override
     public boolean isReadOnly() {
         return true;
     }

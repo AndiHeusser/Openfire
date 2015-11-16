@@ -21,6 +21,7 @@
 package org.jivesoftware.openfire.session;
 
 import java.net.UnknownHostException;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -33,11 +34,13 @@ import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.auth.AuthToken;
 import org.jivesoftware.openfire.auth.UnauthorizedException;
 import org.jivesoftware.openfire.cluster.ClusterManager;
+import org.jivesoftware.openfire.keystore.Purpose;
 import org.jivesoftware.openfire.net.SASLAuthentication;
 import org.jivesoftware.openfire.net.SSLConfig;
 import org.jivesoftware.openfire.net.SocketConnection;
 import org.jivesoftware.openfire.privacy.PrivacyList;
 import org.jivesoftware.openfire.privacy.PrivacyListManager;
+import org.jivesoftware.openfire.streammanagement.StreamManager;
 import org.jivesoftware.openfire.user.PresenceEventDispatcher;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.JiveGlobals;
@@ -71,8 +74,8 @@ public class LocalClientSession extends LocalSession implements ClientSession {
      * Note: Key = IP address or IP range; Value = empty string. A hash map is being used for
      * performance reasons.
      */
-    private static Map<String,String> allowedIPs = new HashMap<String,String>();
-    private static Map<String,String> allowedAnonymIPs = new HashMap<String,String>();
+    private static Map<String,String> allowedIPs = new HashMap<>();
+    private static Map<String,String> allowedAnonymIPs = new HashMap<>();
 
     private boolean messageCarbonsEnabled;
 
@@ -253,7 +256,7 @@ public class LocalClientSession extends LocalSession implements ClientSession {
         if (!connection.isSecure()) {
             boolean hasCertificates = false;
             try {
-                hasCertificates = SSLConfig.getKeyStore().size() > 0;
+                hasCertificates = SSLConfig.getStore( Purpose.SOCKETBASED_IDENTITYSTORE ).size() > 0;
             }
             catch (Exception e) {
                 Log.error(e.getMessage(), e);
@@ -297,7 +300,7 @@ public class LocalClientSession extends LocalSession implements ClientSession {
         // Don't include version info if the version is 0.0.
         if (majorVersion != 0) {
             sb.append("\" version=\"");
-            sb.append(majorVersion).append(".").append(minorVersion);
+            sb.append(majorVersion).append('.').append(minorVersion);
         }
         sb.append("\">");
         connection.deliverRawText(sb.toString());
@@ -478,6 +481,7 @@ public class LocalClientSession extends LocalSession implements ClientSession {
      *
      * @return the Privacy list that overrides the default privacy list.
      */
+    @Override
     public PrivacyList getActiveList() {
         if (activeList != null) {
             try {
@@ -495,6 +499,7 @@ public class LocalClientSession extends LocalSession implements ClientSession {
      *
      * @param activeList the Privacy list that overrides the default privacy list.
      */
+    @Override
     public void setActiveList(PrivacyList activeList) {
         this.activeList = activeList != null ? activeList.getName() : null;
         if (ClusterManager.isClusteringStarted()) {
@@ -510,6 +515,7 @@ public class LocalClientSession extends LocalSession implements ClientSession {
      *
      * @return the default Privacy list used for the session's user.
      */
+    @Override
     public PrivacyList getDefaultList() {
         if (defaultList != null) {
             try {
@@ -527,6 +533,7 @@ public class LocalClientSession extends LocalSession implements ClientSession {
      *
      * @param defaultList the default Privacy list used for the session's user.
      */
+    @Override
     public void setDefaultList(PrivacyList defaultList) {
         // Do nothing if nothing has changed
         if ((this.defaultList == null && defaultList == null) ||
@@ -563,6 +570,7 @@ public class LocalClientSession extends LocalSession implements ClientSession {
      * @throws org.jivesoftware.openfire.user.UserNotFoundException if a user is not associated with a session
      *      (the session has not authenticated yet)
      */
+    @Override
     public String getUsername() throws UserNotFoundException {
         if (authToken == null) {
             throw new UserNotFoundException();
@@ -628,6 +636,7 @@ public class LocalClientSession extends LocalSession implements ClientSession {
         return authToken;
     }
 
+    @Override
     public boolean isAnonymousUser() {
         return authToken == null || authToken.isAnonymous();
     }
@@ -642,6 +651,7 @@ public class LocalClientSession extends LocalSession implements ClientSession {
      *
      * @return True if the session has already been initializsed
      */
+    @Override
     public boolean isInitialized() {
         return initialized;
     }
@@ -652,6 +662,7 @@ public class LocalClientSession extends LocalSession implements ClientSession {
      * @param isInit True if the session has been initialized
      * @see #isInitialized
      */
+    @Override
     public void setInitialized(boolean isInit) {
         initialized = isInit;
     }
@@ -676,6 +687,7 @@ public class LocalClientSession extends LocalSession implements ClientSession {
      *         becomes online.
      * @see <a href="http://www.xmpp.org/extensions/xep-0160.html">XEP-0160: Best Practices for Handling Offline Messages</a>
      */
+    @Override
     public boolean canFloodOfflineMessages() {
         // XEP-0160: When the recipient next sends non-negative available presence to the server, the server delivers the message to the resource that has sent that presence.
         if(offlineFloodStopped || presence.getPriority() < 0) {
@@ -700,6 +712,7 @@ public class LocalClientSession extends LocalSession implements ClientSession {
      * @return true if the user requested to not receive offline messages when sending
      *         an available presence.
      */
+    @Override
     public boolean isOfflineFloodStopped() {
         return offlineFloodStopped;
     }
@@ -728,6 +741,7 @@ public class LocalClientSession extends LocalSession implements ClientSession {
      *
      * @return The presence of this session or null if not authenticated
      */
+    @Override
     public Presence getPresence() {
         return presence;
     }
@@ -737,6 +751,7 @@ public class LocalClientSession extends LocalSession implements ClientSession {
      *
      * @param presence The presence for the session
      */
+    @Override
     public void setPresence(Presence presence) {
         Presence oldPresence = this.presence;
         this.presence = presence;
@@ -801,10 +816,16 @@ public class LocalClientSession extends LocalSession implements ClientSession {
             }
         }
         else {
-            // If the session has been authenticated then offer resource binding
+            // If the session has been authenticated then offer resource binding,
             // and session establishment
             sb.append("<bind xmlns=\"urn:ietf:params:xml:ns:xmpp-bind\"/>");
             sb.append("<session xmlns=\"urn:ietf:params:xml:ns:xmpp-session\"><optional/></session>");
+
+            // Offer XEP-0198 stream management capabilities if enabled.
+            if(JiveGlobals.getBooleanProperty("stream.management.active", true)) {
+            	sb.append(String.format("<sm xmlns='%s'/>", StreamManager.NAMESPACE_V2));
+            	sb.append(String.format("<sm xmlns='%s'/>", StreamManager.NAMESPACE_V3));
+            }
         }
         return sb.toString();
     }
@@ -812,6 +833,7 @@ public class LocalClientSession extends LocalSession implements ClientSession {
     /**
      * Increments the conflict by one.
      */
+    @Override
     public int incrementConflictCount() {
         conflictCount++;
         return conflictCount;
@@ -854,7 +876,17 @@ public class LocalClientSession extends LocalSession implements ClientSession {
 
     @Override
 	public void deliver(Packet packet) throws UnauthorizedException {
+
         conn.deliver(packet);
+
+        if(streamManager.isEnabled()) {
+        	streamManager.incrementServerSentStanzas();
+        	// Temporarily store packet until delivery confirmed
+        	streamManager.getUnacknowledgedServerStanzas().addLast(new StreamManager.UnackedPacket(new Date(), packet.createCopy()));
+	        if(getNumServerPackets() % JiveGlobals.getLongProperty("stream.management.requestFrequency", 5) == 0) {
+	        	streamManager.sendServerRequest();
+	        }
+        }
     }
 
     @Override

@@ -35,6 +35,7 @@ import java.io.OutputStreamWriter;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -84,7 +85,7 @@ public class XMLProperties {
      * Parsing the XML file every time we need a property is slow. Therefore,
      * we use a Map to cache property values that are accessed more than once.
      */
-    private Map<String, String> propertyCache = new HashMap<String, String>();
+    private Map<String, String> propertyCache = new HashMap<>();
 
     /**
      * Creates a new empty XMLPropertiesTest object.
@@ -113,8 +114,9 @@ public class XMLProperties {
      * @throws IOException if an exception occurs when reading the stream.
      */
     public XMLProperties(InputStream in) throws IOException {
-        Reader reader = new BufferedReader(new InputStreamReader(in, "UTF-8"));
-        buildDoc(reader);
+        try (Reader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+            buildDoc(reader);
+        }
     }
 
     /**
@@ -153,8 +155,9 @@ public class XMLProperties {
             throw new IOException("XML properties file must be writable: " + file.getName());
         }
 
-        FileReader reader = new FileReader(file);
-        buildDoc(reader);
+        try (FileReader reader = new FileReader(file)) {
+             buildDoc(reader);
+        }
     }
 
     /**
@@ -237,7 +240,7 @@ public class XMLProperties {
      * @return all child property values for the given node name.
      */
     public List<String> getProperties(String name, boolean asList) {
-        List<String> result = new ArrayList<String>();
+        List<String> result = new ArrayList<>();
         String[] propName = parsePropertyName(name);
         // Search for this property by traversing down the XML hierarchy,
         // stopping one short.
@@ -343,7 +346,7 @@ public class XMLProperties {
         }
         // We found matching property, return values of the children.
         Iterator<Element> iter = element.elementIterator(propName[propName.length - 1]);
-        ArrayList<String> props = new ArrayList<String>();
+        ArrayList<String> props = new ArrayList<>();
         Element prop;
         String value;
         while (iter.hasNext()) {
@@ -455,13 +458,13 @@ public class XMLProperties {
         }
         String childName = propName[propName.length - 1];
         // We found matching property, clear all children.
-        List<Element> toRemove = new ArrayList<Element>();
+        List<Element> toRemove = new ArrayList<>();
         Iterator<Element> iter = element.elementIterator(childName);
         while (iter.hasNext()) {
             toRemove.add(iter.next());
         }
         for (iter = toRemove.iterator(); iter.hasNext();) {
-            element.remove((Element)iter.next());
+            element.remove(iter.next());
         }
         // Add the new children.
         for (String value : values) {
@@ -490,7 +493,7 @@ public class XMLProperties {
         saveProperties();
 
         // Generate event.
-        Map<String, Object> params = new HashMap<String, Object>();
+        Map<String, Object> params = new HashMap<>();
         params.put("value", values);
         PropertyEventDispatcher.dispatchEvent(name,
                 PropertyEventDispatcher.EventType.xml_property_set, params);
@@ -538,7 +541,7 @@ public class XMLProperties {
      * @return Names for all properties in the file
      */
     public List<String> getAllPropertyNames() {
-    	List<String> result = new ArrayList<String>();
+    	List<String> result = new ArrayList<>();
     	for (String propertyName : getChildPropertyNamesFor(document.getRootElement(), "")) {
     		if (getProperty(propertyName) != null) {
     			result.add(propertyName);
@@ -548,7 +551,7 @@ public class XMLProperties {
     }
     
     private List<String> getChildPropertyNamesFor(Element parent, String parentName) {
-    	List<String> result = new ArrayList<String>();
+    	List<String> result = new ArrayList<>();
     	for (Element child : (Collection<Element>) parent.elements()) {
     		String childName = new StringBuilder(parentName)
 							.append(parentName.isEmpty() ? "" : ".")
@@ -651,7 +654,7 @@ public class XMLProperties {
         saveProperties();
 
         // Generate event.
-        Map<String, Object> params = new HashMap<String, Object>();
+        Map<String, Object> params = new HashMap<>();
         params.put("value", value);
         PropertyEventDispatcher.dispatchEvent(name,
                 PropertyEventDispatcher.EventType.xml_property_set, params);
@@ -729,11 +732,6 @@ public class XMLProperties {
             Log.error("Error reading XML properties", e);
             throw new IOException(e.getMessage());
         }
-        finally {
-            if (in != null) {
-                in.close();
-            }
-        }
     }
 
     /**
@@ -747,11 +745,8 @@ public class XMLProperties {
     	}
         boolean error = false;
         // Write data out to a temporary file first.
-        File tempFile = null;
-        Writer writer = null;
-        try {
-            tempFile = new File(file.getParentFile(), file.getName() + ".tmp");
-            writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(tempFile), "UTF-8"));
+        File tempFile = new File(file.getParentFile(), file.getName() + ".tmp");
+        try (Writer writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(tempFile), StandardCharsets.UTF_8))) {
             OutputFormat prettyPrinter = OutputFormat.createPrettyPrint();
             XMLWriter xmlWriter = new XMLWriter(writer, prettyPrinter);
             xmlWriter.write(document);
@@ -760,17 +755,6 @@ public class XMLProperties {
             Log.error(e.getMessage(), e);
             // There were errors so abort replacing the old property file.
             error = true;
-        }
-        finally {
-            if (writer != null) {
-                try {
-                    writer.close();
-                }
-                catch (IOException e1) {
-                    Log.error(e1.getMessage(), e1);
-                    error = true;
-                }
-            }
         }
 
         // No errors occurred, so delete the main file.
@@ -805,7 +789,7 @@ public class XMLProperties {
      * @return an array representation of the given Jive property.
      */
     private String[] parsePropertyName(String name) {
-        List<String> propName = new ArrayList<String>(5);
+        List<String> propName = new ArrayList<>(5);
         // Use a StringTokenizer to tokenize the property name.
         StringTokenizer tokenizer = new StringTokenizer(name, ".");
         while (tokenizer.hasMoreTokens()) {
@@ -829,25 +813,9 @@ public class XMLProperties {
      * @throws IOException If there was a problem making the copy
      */
     private static void copy(File inFile, File outFile) throws IOException {
-        FileInputStream fin = null;
-        FileOutputStream fout = null;
-        try {
-            fin = new FileInputStream(inFile);
-            fout = new FileOutputStream(outFile);
-            copy(fin, fout);
-        }
-        finally {
-            try {
-                if (fin != null) fin.close();
-            }
-            catch (IOException e) {
-                // do nothing
-            }
-            try {
-                if (fout != null) fout.close();
-            }
-            catch (IOException e) {
-                // do nothing
+        try (FileInputStream fin = new FileInputStream(inFile)) {
+            try (FileOutputStream fout = new FileOutputStream(outFile)) {
+                copy(fin, fout);
             }
         }
     }

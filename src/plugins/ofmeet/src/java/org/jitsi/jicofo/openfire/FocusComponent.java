@@ -20,8 +20,6 @@ import org.jitsi.jicofo.xmpp.ConferenceIqProvider;
 import org.jitsi.jicofo.xmpp.IQUtils;
 import org.jitsi.util.*;
 
-import org.jitsi.videobridge.osgi.ServiceUtils2;
-
 import org.jivesoftware.smack.packet.*;
 
 import org.osgi.framework.*;
@@ -230,7 +228,7 @@ public class FocusComponent extends AbstractComponent
         {
             org.jivesoftware.smack.packet.IQ smackIq = IQUtils.convert(iq);
 
-            if (smackIq instanceof ConferenceIq)
+            if (focusManager != null && smackIq instanceof ConferenceIq)
             {
                 ConferenceIq query = (ConferenceIq) smackIq;
                 ConferenceIq response = new ConferenceIq();

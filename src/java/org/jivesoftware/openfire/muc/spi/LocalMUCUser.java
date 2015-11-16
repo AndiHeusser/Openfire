@@ -80,7 +80,7 @@ public class LocalMUCUser implements MUCUser {
     private JID realjid;
 
     /** Table: key roomName.toLowerCase(); value LocalMUCRole. */
-    private Map<String, LocalMUCRole> roles = new ConcurrentHashMap<String, LocalMUCRole>();
+    private Map<String, LocalMUCRole> roles = new ConcurrentHashMap<>();
 
     /** Deliver packets to users. */
     private PacketRouter router;
@@ -182,10 +182,12 @@ public class LocalMUCUser implements MUCUser {
       *
       * @return the address of the packet handler.
       */
+    @Override
     public JID getAddress() {
         return realjid;
     }
 
+    @Override
     public void process(Packet packet) throws UnauthorizedException, PacketException {
         if (packet instanceof IQ) {
             process((IQ)packet);
@@ -309,7 +311,7 @@ public class LocalMUCUser implements MUCUser {
                                     // message invitation. These extensions will be sent to the
                                     // invitees.
                                     @SuppressWarnings("unchecked")
-                                    List<Element> extensions = new ArrayList<Element>(packet
+                                    List<Element> extensions = new ArrayList<>(packet
                                             .getElement().elements());
                                     extensions.remove(userInfo);
                                     
@@ -499,7 +501,7 @@ public class LocalMUCUser implements MUCUser {
                         catch (ServiceUnavailableException e) {
                             sendErrorPacket(packet, PacketError.Condition.service_unavailable);
                         }
-                        catch (UserAlreadyExistsException e) {
+                        catch (UserAlreadyExistsException | ConflictException e) {
                             sendErrorPacket(packet, PacketError.Condition.conflict);
                         }
                         catch (RoomLockedException e) {
@@ -511,11 +513,7 @@ public class LocalMUCUser implements MUCUser {
                         }
                         catch (RegistrationRequiredException e) {
                             sendErrorPacket(packet, PacketError.Condition.registration_required);
-                        }
-                        catch (ConflictException e) {
-                            sendErrorPacket(packet, PacketError.Condition.conflict);
-                        }
-                        catch (NotAcceptableException e) {
+                        } catch (NotAcceptableException e) {
                             sendErrorPacket(packet, PacketError.Condition.not_acceptable);
                         }
                         catch (NotAllowedException e) {

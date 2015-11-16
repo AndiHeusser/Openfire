@@ -56,7 +56,7 @@ public class HistoryStrategy {
     /**
      * List containing the history of messages.
      */
-    private ConcurrentLinkedQueue<Message> history = new ConcurrentLinkedQueue<Message>();
+    private ConcurrentLinkedQueue<Message> history = new ConcurrentLinkedQueue<>();
     /**
      * Default max number.
      */
@@ -230,7 +230,7 @@ public class HistoryStrategy {
      * @return An iterator of Message objects to be sent to the new room member.
      */
     public Iterator<Message> getMessageHistory(){
-        LinkedList<Message> list = new LinkedList<Message>(history);
+        LinkedList<Message> list = new LinkedList<>(history);
         // Sort messages. Messages may be out of order when running inside of a cluster
         Collections.sort(list, new MessageComparator());
         return list.iterator();
@@ -244,7 +244,7 @@ public class HistoryStrategy {
      * @return A list iterator of Message objects positioned at the end of the list.
      */
     public ListIterator<Message> getReverseMessageHistory(){
-        LinkedList<Message> list = new LinkedList<Message>(history);
+        LinkedList<Message> list = new LinkedList<>(history);
         // Sort messages. Messages may be out of order when running inside of a cluster
         Collections.sort(list, new MessageComparator());
         return list.listIterator(list.size());
@@ -254,8 +254,8 @@ public class HistoryStrategy {
      * Strategy type.
      */
     public enum Type {
-        defaulType, none, all, number
-    };
+        defaulType, none, all, number;
+    }
 
     /**
      * Obtain the strategy type from string name. See the Type enumeration name
@@ -323,6 +323,7 @@ public class HistoryStrategy {
     }
 
     private static class MessageComparator implements Comparator<Message> {
+        @Override
         public int compare(Message o1, Message o2) {
             String stamp1 = o1.getChildElement("x", "jabber:x:delay").attributeValue("stamp");
             String stamp2 = o2.getChildElement("x", "jabber:x:delay").attributeValue("stamp");

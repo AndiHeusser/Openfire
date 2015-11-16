@@ -237,7 +237,6 @@ Strophe.addConnectionPlugin('ofmuc', {
 	var jid = null;
 	var videoSpanId = null;
 	var node = null;
-	var button = $("#sipCallButton > a");
 
 	$(packet).find('header').each(function() 
 	{		
@@ -280,8 +279,6 @@ Strophe.addConnectionPlugin('ofmuc', {
 				$(container).attr("title", Strophe.getBareJidFromJid(jid));
 			}
 		}
-		
-		button.addClass("glow");
 	});
 	
 	$(packet).find('hangup').each(function() 
@@ -301,8 +298,7 @@ Strophe.addConnectionPlugin('ofmuc', {
 			    $(container).hide();
 			    VideoLayout.resizeThumbnails();
 			}
-		}
-		button.removeClass("glow");		
+		}	
 	});	
 	
 	return true;
@@ -540,7 +536,7 @@ Strophe.addConnectionPlugin('ofmuc', {
 	        
 	        } else {
 	        
-			$.prompt("Are you sure you would like to remove your shared applicationt",
+			$.prompt("Are you sure you would like to remove your shared application?",
 				{
 				title: "Remove application sharing",
 				buttons: removeButtons,
@@ -600,7 +596,10 @@ Strophe.addConnectionPlugin('ofmuc', {
 	    	
 	    	for (var i=0; i<that.urls.length; i++)
 	    	{
-	    		if (that.urls[i].url.indexOf(".pdf") == -1 ) appsList = appsList + '<option value="' + that.urls[i].url + '">' + that.urls[i].name + '</option>'
+	    		if (that.urls[i].url.indexOf(".pdf") == -1 && that.urls[i].url.indexOf("mrtp:") == -1 )
+	    		{
+	    			appsList = appsList + '<option value="' + that.urls[i].url + '">' + that.urls[i].name + '</option>'
+	    		}
 	    	}
 	    	appsList = appsList + '</select>'
 	    	
@@ -787,7 +786,7 @@ Strophe.addConnectionPlugin('ofmuc', {
 	    	}
 	    	urlsList = urlsList + '</datalist>'
 	    	
-		$.prompt('<h2>Share a Presentation</h2><input id="pdfiUrl" type="text" list="urls-list" autofocus >' + urlsList,
+		$.prompt('<h2>Share a Presentation</h2> <br> Full URL to a public PDF:<input id="pdfiUrl" type="text" list="urls-list" autofocus >' + urlsList,
 		{
 			title: "Share a PDF Presentation",
 			persistent: false,

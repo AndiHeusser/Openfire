@@ -193,20 +193,11 @@ public class IQAuthHandler extends IQHandler implements IQAuthInfo {
                     }
                 }
             }
-            catch (UserNotFoundException e) {
+            catch (UserNotFoundException | UnauthorizedException e) {
                 response = IQ.createResultIQ(packet);
                 response.setChildElement(packet.getChildElement().createCopy());
                 response.setError(PacketError.Condition.not_authorized);
-            }
-            catch (UnauthorizedException e) {
-                response = IQ.createResultIQ(packet);
-                response.setChildElement(packet.getChildElement().createCopy());
-                response.setError(PacketError.Condition.not_authorized);
-            } catch (ConnectionException e) {
-                response = IQ.createResultIQ(packet);
-                response.setChildElement(packet.getChildElement().createCopy());
-                response.setError(PacketError.Condition.internal_server_error);
-            } catch (InternalUnauthenticatedException e) {
+            } catch (ConnectionException | InternalUnauthenticatedException e) {
                 response = IQ.createResultIQ(packet);
                 response.setChildElement(packet.getChildElement().createCopy());
                 response.setError(PacketError.Condition.internal_server_error);
@@ -323,7 +314,7 @@ public class IQAuthHandler extends IQHandler implements IQAuthInfo {
             try {
                 userManager.getUser(username).setPassword(password);
                 response = IQ.createResultIQ(packet);
-                List<String> params = new ArrayList<String>();
+                List<String> params = new ArrayList<>();
                 params.add(username);
                 params.add(session.toString());
                 Log.info(LocaleUtils.getLocalizedString("admin.password.update", params));
@@ -380,10 +371,12 @@ public class IQAuthHandler extends IQHandler implements IQAuthInfo {
         return response;
     }
 
+    @Override
     public boolean isAnonymousAllowed() {
         return anonymousAllowed;
     }
 
+    @Override
     public void setAllowAnonymous(boolean isAnonymous) throws UnauthorizedException {
         anonymousAllowed = isAnonymous;
         JiveGlobals.setProperty("xmpp.auth.anonymous", Boolean.toString(anonymousAllowed));

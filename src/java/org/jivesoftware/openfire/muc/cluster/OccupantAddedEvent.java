@@ -69,7 +69,7 @@ public class OccupantAddedEvent extends MUCRoomTask {
     }
 
     public String getNickname() {
-        return presence.getTo().getResource().trim();
+        return presence.getFrom().getResource().trim();
     }
 
     public MUCRole.Role getRole() {
@@ -118,13 +118,16 @@ public class OccupantAddedEvent extends MUCRoomTask {
         return sendPresence;
     }
 
+    @Override
     public Object getResult() {
         return null;
     }
 
+    @Override
     public void run() {
         // Execute the operation considering that we may still be joining the cluster
         execute(new Runnable() {
+            @Override
             public void run() {
                 getRoom().occupantAdded(OccupantAddedEvent.this);
             }

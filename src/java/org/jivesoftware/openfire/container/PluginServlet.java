@@ -79,7 +79,7 @@ public class PluginServlet extends HttpServlet {
     private static ServletConfig servletConfig;
 
     static {
-        servlets = new ConcurrentHashMap<String, GenericServlet>();
+        servlets = new ConcurrentHashMap<>();
     }
 	
 	public static final String PLUGINS_WEBROOT = "/plugins/";
@@ -154,7 +154,7 @@ public class PluginServlet extends HttpServlet {
             Document doc = saxReader.read(webXML);
             // Find all <servlet> entries to discover name to class mapping.
             List classes = doc.selectNodes("//servlet");
-            Map<String, Class> classMap = new HashMap<String, Class>();
+            Map<String, Class> classMap = new HashMap<>();
             for (int i = 0; i < classes.size(); i++) {
                 Element servletElement = (Element)classes.get(i);
                 String name = servletElement.element("servlet-name").getTextTrim();
@@ -405,34 +405,18 @@ public class PluginServlet extends HttpServlet {
             // response.setHeader("Content-disposition", "filename=\"" + file + "\";");
             response.setContentType(contentType);
             // Write out the resource to the user.
-            InputStream in = null;
-            ServletOutputStream out = null;
-            try {
-                in = new BufferedInputStream(new FileInputStream(file));
-                out = response.getOutputStream();
+            try (InputStream in = new BufferedInputStream(new FileInputStream(file))) {
+                try (ServletOutputStream out = response.getOutputStream()) {
 
-                // Set the size of the file.
-                response.setContentLength((int)file.length());
+                    // Set the size of the file.
+                    response.setContentLength((int) file.length());
 
-                // Use a 1K buffer.
-                byte[] buf = new byte[1024];
-                int len;
-                while ((len = in.read(buf)) != -1) {
-                    out.write(buf, 0, len);
-                }
-            }
-            finally {
-                try {
-                    in.close();
-                }
-                catch (Exception ignored) {
-                    // Ignore.
-                }
-                try {
-                    out.close();
-                }
-                catch (Exception ignored) {
-                    // Ignore.
+                    // Use a 1K buffer.
+                    byte[] buf = new byte[1024];
+                    int len;
+                    while ((len = in.read(buf)) != -1) {
+                        out.write(buf, 0, len);
+                    }
                 }
             }
         }
@@ -547,7 +531,7 @@ public class PluginServlet extends HttpServlet {
         for (URL url : pluginClassloader.getURLs()) {
             File file = new File(url.getFile());
 
-            classpath.append(file.getAbsolutePath()).append(";");
+            classpath.append(file.getAbsolutePath()).append(';');
         }
 
         // Load all jars from lib
@@ -568,7 +552,7 @@ public class PluginServlet extends HttpServlet {
         classpath.append(openfireLib.getAbsolutePath()).append("//jasper-runtime.jar;");
 
         if (pluginEnv.getClassesDir() != null) {
-            classpath.append(pluginEnv.getClassesDir().getAbsolutePath()).append(";");
+            classpath.append(pluginEnv.getClassesDir().getAbsolutePath()).append(';');
         }
         return classpath.toString();
     }

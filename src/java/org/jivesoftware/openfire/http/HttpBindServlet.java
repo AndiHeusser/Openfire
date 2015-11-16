@@ -22,6 +22,7 @@ package org.jivesoftware.openfire.http;
 import java.io.*;
 import java.net.InetAddress;
 import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.security.cert.X509Certificate;
 import java.util.Date;
 
@@ -69,7 +70,7 @@ public class HttpBindServlet extends HttpServlet {
         }
     }
 
-    private ThreadLocal<XMPPPacketReader> localReader = new ThreadLocal<XMPPPacketReader>();
+    private ThreadLocal<XMPPPacketReader> localReader = new ThreadLocal<>();
 
     public HttpBindServlet() {
     }
@@ -218,11 +219,8 @@ public class HttpBindServlet extends HttpServlet {
                 Log.info(new Date() + ": HTTP RECV(" + connection.getSession().getStreamID().getID() + "): " + rootNode.asXML());
             }
         }
-        catch (UnauthorizedException e) {
+        catch (UnauthorizedException | HttpBindException e) {
             // Server wasn't initialized yet.
-            sendLegacyError(context, BoshBindingError.internalServerError, "Server has not finished initialization." );
-        }
-        catch (HttpBindException e) {
             sendLegacyError(context, BoshBindingError.internalServerError, "Server has not finished initialization." );
         }
     }
@@ -295,7 +293,7 @@ public class HttpBindServlet extends HttpServlet {
             System.out.println(new Date() + ": HTTP SENT(" + session.getStreamID().getID() + "): " + content);
         }
 
-        final byte[] byteContent = content.getBytes("UTF-8");
+        final byte[] byteContent = content.getBytes(StandardCharsets.UTF_8);
         if (async) {
             response.getOutputStream().setWriteListener(new WriteListenerImpl(context, byteContent));
         } else {
@@ -414,7 +412,7 @@ public class HttpBindServlet extends HttpServlet {
             byte b[] = new byte[1024];
             int length;
             while (inputStream.isReady() && (length = inputStream.read(b)) != -1) {
-                buffer.append(new String(b, 0, length));
+                buffer.append(new String(b, 0, length, StandardCharsets.UTF_8));
             }
         }
 

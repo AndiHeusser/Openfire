@@ -38,9 +38,10 @@ import org.jivesoftware.openfire.clearspace.ClearspaceSaslServer;
 
 public class SaslServerFactoryImpl implements SaslServerFactory {
 
-    private static final String myMechs[] = { "PLAIN", "CLEARSPACE" };
+    private static final String myMechs[] = { "PLAIN", "CLEARSPACE", "SCRAM-SHA-1" };
     private static final int PLAIN = 0;
     private static final int CLEARSPACE = 1;
+    private static final int SCRAM_SHA_1 = 2;
 
     public SaslServerFactoryImpl() {
     }
@@ -57,6 +58,7 @@ public class SaslServerFactoryImpl implements SaslServerFactory {
      * @throws SaslException If cannot create a SaslServer because of an error.
      */
 
+    @Override
     public SaslServer createSaslServer(String mechanism, String protocol, String serverName, Map<String, ?> props, CallbackHandler cbh) throws SaslException {
         if (mechanism.equals(myMechs[PLAIN]) && checkPolicy(props)) {
             if (cbh == null) {
@@ -69,6 +71,12 @@ public class SaslServerFactoryImpl implements SaslServerFactory {
                 throw new SaslException("CallbackHandler with support for AuthorizeCallback required");
             }
             return new ClearspaceSaslServer();
+        }
+        else if (mechanism.equals(myMechs[SCRAM_SHA_1])) {
+        	if (cbh == null) {
+                throw new SaslException("CallbackHandler with support for AuthorizeCallback required");
+        	}
+        	return new ScramSha1SaslServer();
         }
         return null;
     }
@@ -96,6 +104,7 @@ public class SaslServerFactoryImpl implements SaslServerFactory {
      * @return A non-null array containing a IANA-registered SASL mechanism names.
      */
 
+    @Override
     public String[] getMechanismNames(Map<String, ?> props) {
     	if (checkPolicy(props)) {
     		return myMechs;

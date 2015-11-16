@@ -48,10 +48,12 @@ public class SSLJiveTrustManager implements X509TrustManager {
 
 	private static final Logger Log = LoggerFactory.getLogger(SSLJiveTrustManager.class);
 
+    @Override
     public void checkClientTrusted(X509Certificate[] chain, String authType) {
 
     }
 
+    @Override
     public void checkServerTrusted(X509Certificate[] chain, String authType) {
     }
 
@@ -64,17 +66,14 @@ public class SSLJiveTrustManager implements X509TrustManager {
         try {
             x509Certificates[0].checkValidity();
         }
-        catch (CertificateExpiredException e) {
-            Log.error(LocaleUtils.getLocalizedString("admin.error"), e);
-            trusted = false;
-        }
-        catch (CertificateNotYetValidException e) {
+        catch (CertificateExpiredException | CertificateNotYetValidException e) {
             Log.error(LocaleUtils.getLocalizedString("admin.error"), e);
             trusted = false;
         }
         return trusted;
     }
 
+    @Override
     public X509Certificate[] getAcceptedIssuers() {
         return new X509Certificate[0];
     }

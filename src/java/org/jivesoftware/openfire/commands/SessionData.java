@@ -44,7 +44,7 @@ public class SessionData {
      * Map that keeps the association of variables and values obtained in each stage.
      * Note: Key=stage number, Value=Map with key=variable name and value=variable values.
      */
-    private Map<Integer, Map<String, List<String>>> stagesData = new HashMap<Integer, Map<String, List<String>>>();
+    private Map<Integer, Map<String, List<String>>> stagesData = new HashMap<>();
 
     /**
      * Keeps the default execution action to follow if the command requester does not include
@@ -52,14 +52,14 @@ public class SessionData {
      */
     private AdHocCommand.Action executeAction;
 
-    private List<AdHocCommand.Action> allowedActions = new ArrayList<AdHocCommand.Action>();
+    private List<AdHocCommand.Action> allowedActions = new ArrayList<>();
 
     /**
      * Indicates the current stage where the requester is located. Stages are numbered from 0.
      */
     private int stage;
 
-    SessionData(String sessionid, JID owner) {
+    protected SessionData(String sessionid, JID owner) {
         this.id = sessionid;
         this.creationStamp = System.currentTimeMillis();
         this.stage = -1;
@@ -83,11 +83,11 @@ public class SessionData {
         return creationStamp;
     }
 
-    AdHocCommand.Action getExecuteAction() {
+    protected AdHocCommand.Action getExecuteAction() {
         return executeAction;
     }
 
-    void setExecuteAction(AdHocCommand.Action executeAction) {
+    protected void setExecuteAction(AdHocCommand.Action executeAction) {
         this.executeAction = executeAction;
     }
 
@@ -96,9 +96,9 @@ public class SessionData {
      *
      * @param allowedActions list of valid actions.
      */
-    void setAllowedActions(List<AdHocCommand.Action> allowedActions) {
+    protected void setAllowedActions(List<AdHocCommand.Action> allowedActions) {
         if (allowedActions == null) {
-            allowedActions = new ArrayList<AdHocCommand.Action>();
+            allowedActions = new ArrayList<>();
         }
         this.allowedActions = allowedActions;
     }
@@ -110,7 +110,7 @@ public class SessionData {
      * @param actionName the name of the action to validate.
      * @return true if the specified action is valid in the current stage.
      */
-    boolean isValidAction(String actionName) {
+    protected boolean isValidAction(String actionName) {
         for (AdHocCommand.Action action : allowedActions) {
             if (actionName.equals(action.name())) {
                 return true;
@@ -119,7 +119,7 @@ public class SessionData {
         return false;
     }
 
-    void addStageForm(Map<String, List<String>> data) {
+    protected void addStageForm(Map<String, List<String>> data) {
         stagesData.put(stage, data);
     }
 
@@ -129,7 +129,7 @@ public class SessionData {
      * @return a Map with all the variables and values obtained during all the command stages.
      */
     public Map<String, List<String>> getData() {
-        Map<String, List<String>> data = new HashMap<String, List<String>>();
+        Map<String, List<String>> data = new HashMap<>();
         for (Map<String, List<String>> stageData : stagesData.values()) {
             data.putAll(stageData);
         }
@@ -156,7 +156,7 @@ public class SessionData {
      *
      * @param stage the current stage where the requester is located.
      */
-    void setStage(int stage) {
+    protected void setStage(int stage) {
         this.stage = stage;
     }
 

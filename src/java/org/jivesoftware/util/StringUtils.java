@@ -19,8 +19,14 @@
 
 package org.jivesoftware.util;
 
-import java.io.UnsupportedEncodingException;
+import org.apache.commons.codec.binary.Base32;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.mail.internet.AddressException;
+import javax.mail.internet.InternetAddress;
 import java.net.IDN;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.BreakIterator;
@@ -35,13 +41,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentHashMap;
-
-import javax.mail.internet.AddressException;
-import javax.mail.internet.InternetAddress;
-
-import org.apache.commons.codec.binary.Base32;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Utility class to perform common String manipulation algorithms.
@@ -331,7 +330,7 @@ public class StringUtils {
      * Used by the hash method.
      */
     private static Map<String, MessageDigest> digests =
-            new ConcurrentHashMap<String, MessageDigest>();
+            new ConcurrentHashMap<>();
 
     /**
      * Hashes a String using the Md5 algorithm and returns the result as a
@@ -387,13 +386,7 @@ public class StringUtils {
      * @return a hashed version of the passed-in String
      */
     public static String hash(String data, String algorithm) {
-        try {
-            return hash(data.getBytes("UTF-8"), algorithm);
-        }
-        catch (UnsupportedEncodingException e) {
-            Log.error(e.getMessage(), e);
-        }
-        return data;
+        return hash(data.getBytes(StandardCharsets.UTF_8), algorithm);
     }
 
     /**
@@ -458,7 +451,7 @@ public class StringUtils {
 
         for (i = 0; i < bytes.length; i++) {
             if (((int)bytes[i] & 0xff) < 0x10) {
-                buf.append("0");
+                buf.append('0');
             }
             buf.append(Long.toString((int)bytes[i] & 0xff, 16));
         }
@@ -539,13 +532,7 @@ public class StringUtils {
      * @return a base64 encoded String.
      */
     public static String encodeBase64(String data) {
-        byte[] bytes = null;
-        try {
-            bytes = data.getBytes("UTF-8");
-        }
-        catch (UnsupportedEncodingException uee) {
-            Log.error(uee.getMessage(), uee);
-        }
+        byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
         return encodeBase64(bytes);
     }
 
@@ -580,13 +567,7 @@ public class StringUtils {
      * @return a base32 encoded String.
      */
     public static String encodeBase32(String data) {
-        byte[] bytes = null;
-        try {
-            bytes = data == null ? null : data.getBytes("UTF-8");
-        }
-        catch (UnsupportedEncodingException uee) {
-            Log.error(uee.getMessage(), uee);
-        }
+        byte[] bytes = data == null ? null : data.getBytes(StandardCharsets.UTF_8);
         return encodeBase32(bytes);
     }
 
@@ -640,7 +621,7 @@ public class StringUtils {
             return new String[0];
         }
 
-        List<String> wordList = new ArrayList<String>();
+        List<String> wordList = new ArrayList<>();
         BreakIterator boundary = BreakIterator.getWordInstance();
         boundary.setText(text);
         int start = 0;
@@ -1010,7 +991,7 @@ public class StringUtils {
         else if (delta < JiveConstants.HOUR) {
             long mins = delta / JiveConstants.MINUTE;
             StringBuilder sb = new StringBuilder();
-            sb.append(mins).append(" ");
+            sb.append(mins).append(' ');
             sb.append((mins==1) ? LocaleUtils.getLocalizedString("global.minute") : LocaleUtils.getLocalizedString("global.minutes"));
             return sb.toString();
         }
@@ -1019,10 +1000,10 @@ public class StringUtils {
             delta -= hours * JiveConstants.HOUR;
             long mins = delta / JiveConstants.MINUTE;
             StringBuilder sb = new StringBuilder();
-            sb.append(hours).append(" ");
+            sb.append(hours).append(' ');
             sb.append((hours == 1) ? LocaleUtils.getLocalizedString("global.hour") : LocaleUtils.getLocalizedString("global.hours"));
             sb.append(", ");
-            sb.append(mins).append(" ");
+            sb.append(mins).append(' ');
             sb.append((mins == 1) ? LocaleUtils.getLocalizedString("global.minute") : LocaleUtils.getLocalizedString("global.minutes"));
             return sb.toString();
         } else {
@@ -1032,13 +1013,13 @@ public class StringUtils {
             delta -= hours * JiveConstants.HOUR;
             long mins = delta / JiveConstants.MINUTE;
             StringBuilder sb = new StringBuilder();
-            sb.append(days).append(" ");
+            sb.append(days).append(' ');
             sb.append((days == 1) ? LocaleUtils.getLocalizedString("global.day") : LocaleUtils.getLocalizedString("global.days"));
             sb.append(", ");
-            sb.append(hours).append(" ");
+            sb.append(hours).append(' ');
             sb.append((hours == 1) ? LocaleUtils.getLocalizedString("global.hour") : LocaleUtils.getLocalizedString("global.hours"));
             sb.append(", ");
-            sb.append(mins).append(" ");
+            sb.append(mins).append(' ');
             sb.append((mins == 1) ? LocaleUtils.getLocalizedString("global.minute") : LocaleUtils.getLocalizedString("global.minutes"));
             return sb.toString();
         }
@@ -1070,13 +1051,13 @@ public class StringUtils {
         diff = diff % MS_IN_A_SECOND;
         //long numMilliseconds = diff;
 
-        StringBuffer buf = new StringBuffer();
+        StringBuilder buf = new StringBuilder();
         if (numHours > 0) {
-            buf.append(numHours + " " + HOURS + ", ");
+            buf.append(numHours).append(' ').append(HOURS).append(", ");
         }
 
         if (numMinutes > 0) {
-            buf.append(numMinutes + " " + MINUTES);
+            buf.append(numMinutes).append(' ').append(MINUTES);
         }
 
         //buf.append(numSeconds + " " + SECONDS);
@@ -1118,7 +1099,7 @@ public class StringUtils {
         if (string == null || string.trim().length() == 0) {
             return Collections.emptyList();
         }
-        Collection<String> collection = new ArrayList<String>();
+        Collection<String> collection = new ArrayList<>();
         StringTokenizer tokens = new StringTokenizer(string, ",");
         while (tokens.hasMoreTokens()) {
             collection.add(tokens.nextToken().trim());
@@ -1239,35 +1220,22 @@ public class StringUtils {
 	}
 	
 	/**
-	 * Returns the UTF-8 bytes for the given String, suppressing
-	 * UnsupportedEncodingException (in lieu of log message)
+	 * Returns the UTF-8 bytes for the given String.
 	 * 
 	 * @param input The source string
 	 * @return The UTF-8 encoding for the given string
 	 */
 	public static byte[] getBytes(String input) {
-		try {
-			return input.getBytes("UTF-8");
-		} catch (UnsupportedEncodingException uee) {
-			Log.warn("Unable to encode string using UTF-8: " + input);
-			return input.getBytes(); // default encoding
-		}
+        return input.getBytes(StandardCharsets.UTF_8);
 	}
 	
 	/**
-	 * Returns the UTF-8 String for the given byte array, suppressing
-	 * UnsupportedEncodingException (in lieu of log message)
+	 * Returns the UTF-8 String for the given byte array.
 	 * 
 	 * @param input The source byte array
 	 * @return The UTF-8 encoded String for the given byte array
 	 */
 	public static String getString(byte[] input) {
-		try {
-			return new String(input, "UTF-8");
-		} catch (UnsupportedEncodingException uee) {
-			String result = new String(input); // default encoding
-			Log.warn("Unable to decode byte array using UTF-8: " + result);
-			return result;
-		}
+        return new String(input, StandardCharsets.UTF_8);
 	}
 }

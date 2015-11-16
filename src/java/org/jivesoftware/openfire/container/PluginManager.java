@@ -92,8 +92,8 @@ public class PluginManager {
     private Map<Plugin, String> childPluginMap;
     private Set<String> devPlugins;
     private PluginMonitor pluginMonitor;
-    private Set<PluginListener> pluginListeners = new CopyOnWriteArraySet<PluginListener>();
-    private Set<PluginManagerListener> pluginManagerListeners = new CopyOnWriteArraySet<PluginManagerListener>();
+    private Set<PluginListener> pluginListeners = new CopyOnWriteArraySet<>();
+    private Set<PluginManagerListener> pluginManagerListeners = new CopyOnWriteArraySet<>();
 
     /**
      * Constructs a new plugin manager.
@@ -102,14 +102,14 @@ public class PluginManager {
      */
     public PluginManager(File pluginDir) {
         this.pluginDirectory = pluginDir;
-        plugins = new ConcurrentHashMap<String, Plugin>();
-        pluginDirs = new HashMap<Plugin, File>();
-        pluginFiles = new HashMap<String, File>();
-        classloaders = new HashMap<Plugin, PluginClassLoader>();
-        pluginDevelopment = new HashMap<Plugin, PluginDevEnvironment>();
-        parentPluginMap = new HashMap<Plugin, List<String>>();
-        childPluginMap = new HashMap<Plugin, String>();
-        devPlugins = new HashSet<String>();
+        plugins = new ConcurrentHashMap<>();
+        pluginDirs = new HashMap<>();
+        pluginFiles = new HashMap<>();
+        classloaders = new HashMap<>();
+        pluginDevelopment = new HashMap<>();
+        parentPluginMap = new HashMap<>();
+        childPluginMap = new HashMap<>();
+        devPlugins = new HashSet<>();
         pluginMonitor = new PluginMonitor();
     }
 
@@ -177,12 +177,12 @@ public class PluginManager {
             // Absolute path to the plugin file
             String absolutePath = pluginDirectory + File.separator + pluginFilename;
             // Save input stream contents to a temp file
-            OutputStream out = new FileOutputStream(absolutePath + ".part");
-            while ((len = in.read(b)) != -1) {
-                     //write byte to file
-                     out.write(b, 0, len);
+            try (OutputStream out = new FileOutputStream(absolutePath + ".part")) {
+                while ((len = in.read(b)) != -1) {
+                    //write byte to file
+                    out.write(b, 0, len);
+                }
             }
-            out.close();
             // Delete old .jar (if it exists)
             new File(absolutePath).delete();
             // Rename temp file to .jar
@@ -429,7 +429,7 @@ public class PluginManager {
                     String parentPlugin = parentPluginNode.getTextTrim();
                     List<String> childrenPlugins = parentPluginMap.get(plugins.get(parentPlugin));
                     if (childrenPlugins == null) {
-                        childrenPlugins = new ArrayList<String>();
+                        childrenPlugins = new ArrayList<>();
                         parentPluginMap.put(plugins.get(parentPlugin), childrenPlugins);
                     }
                     childrenPlugins.add(pluginName);
@@ -946,6 +946,7 @@ public class PluginManager {
          */
         private boolean firstRun = true;
 
+        @Override
         public void run() {
             // If the task is already running, return.
             synchronized (this) {
@@ -970,6 +971,7 @@ public class PluginManager {
                 }
 
                 File[] jars = pluginDirectory.listFiles(new FileFilter() {
+                    @Override
                     public boolean accept(File pathname) {
                         String fileName = pathname.getName().toLowerCase();
                         return (fileName.endsWith(".jar") || fileName.endsWith(".war"));
@@ -999,7 +1001,7 @@ public class PluginManager {
                         if (firstRun) {
                             int count = 0;
                             // Attempt to delete the folder for up to 5 seconds.
-                            while (!deleteDir(dir) && count < 5) {
+                            while (!deleteDir(dir) && count++ < 5) {
                                 Thread.sleep(1000);
                             }
                         }
@@ -1014,6 +1016,7 @@ public class PluginManager {
                 }
 
                 File[] dirs = pluginDirectory.listFiles(new FileFilter() {
+                    @Override
                     public boolean accept(File pathname) {
                         return pathname.isDirectory();
                     }
@@ -1022,6 +1025,7 @@ public class PluginManager {
                 // Sort the list of directories so that the "admin" plugin is always
                 // first in the list.
                 Arrays.sort(dirs, new Comparator<File>() {
+                    @Override
                     public int compare(File file1, File file2) {
                         if (file1.getName().equals("admin")) {
                             return -1;
@@ -1036,7 +1040,7 @@ public class PluginManager {
                 });
 
                 // Turn the list of JAR/WAR files into a set so that we can do lookups.
-                Set<String> jarSet = new HashSet<String>();
+                Set<String> jarSet = new HashSet<>();
                 for (File file : jars) {
                     jarSet.add(file.getName().toLowerCase());
                 }
@@ -1045,7 +1049,7 @@ public class PluginManager {
                 // due to the JAR file being deleted (ignore admin plugin).
                 // Build a list of plugins to delete first so that the plugins
                 // keyset isn't modified as we're iterating through it.
-                List<String> toDelete = new ArrayList<String>();
+                List<String> toDelete = new ArrayList<>();
                 for (File pluginDir : dirs) {
                     String pluginName = pluginDir.getName();
                     if (pluginName.equals("admin")) {
@@ -1097,8 +1101,7 @@ public class PluginManager {
          * @param dir the directory to extract the plugin to.
          */
         private void unzipPlugin(String pluginName, File file, File dir) {
-            try {
-                ZipFile zipFile = new JarFile(file);
+            try (ZipFile zipFile = new JarFile(file)) {
                 // Ensure that this JAR is a plugin.
                 if (zipFile.getEntry("plugin.xml") == null) {
                     return;
@@ -1116,20 +1119,18 @@ public class PluginManager {
                     }
                     if (!entry.isDirectory()) {
                         entryFile.getParentFile().mkdirs();
-                        FileOutputStream out = new FileOutputStream(entryFile);
-                        InputStream zin = zipFile.getInputStream(entry);
-                        byte[] b = new byte[512];
-                        int len;
-                        while ((len = zin.read(b)) != -1) {
-                            out.write(b, 0, len);
+                        try (FileOutputStream out = new FileOutputStream(entryFile)) {
+                            try (InputStream zin = zipFile.getInputStream(entry)) {
+                                byte[] b = new byte[512];
+                                int len;
+                                while ((len = zin.read(b)) != -1) {
+                                    out.write(b, 0, len);
+                                }
+                                out.flush();
+                            }
                         }
-                        out.flush();
-                        out.close();
-                        zin.close();
                     }
                 }
-                zipFile.close();
-
             }
             catch (Exception e) {
                 Log.error(e.getMessage(), e);
@@ -1149,8 +1150,9 @@ public class PluginManager {
             // Always try to delete JAR files first since that's what will
             // be under contention. We do this by always sorting the lib directory
             // first.
-            List<String> children = new ArrayList<String>(Arrays.asList(childDirs));
+            List<String> children = new ArrayList<>(Arrays.asList(childDirs));
             Collections.sort(children, new Comparator<String>() {
+                @Override
                 public int compare(String o1, String o2) {
                     if (o1.equals("lib")) {
                         return -1;

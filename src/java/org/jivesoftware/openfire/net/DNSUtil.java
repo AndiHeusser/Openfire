@@ -20,7 +20,6 @@
 
 package org.jivesoftware.openfire.net;
 
-import org.eclipse.jetty.util.MultiMap;
 import org.jivesoftware.util.JiveGlobals;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +31,6 @@ import javax.naming.directory.Attributes;
 import javax.naming.directory.DirContext;
 import javax.naming.directory.InitialDirContext;
 
-import java.io.Serializable;
 import java.util.*;
 
 /**
@@ -54,7 +52,7 @@ public class DNSUtil {
 
     static {
         try {
-            Hashtable<String,String> env = new Hashtable<String,String>();
+            Hashtable<String,String> env = new Hashtable<>();
             env.put("java.naming.factory.initial", "com.sun.jndi.dns.DnsContextFactory");
             context = new InitialDirContext(env);
 
@@ -111,7 +109,7 @@ public class DNSUtil {
      */
     public static List<HostAddress> resolveXMPPDomain(String domain, int defaultPort) {
         // Check if there is an entry in the internal DNS for the specified domain
-        List<HostAddress> results = new LinkedList<HostAddress>();
+        List<HostAddress> results = new LinkedList<>();
         if (dnsOverride != null) {
             HostAddress hostAddress = dnsOverride.get(domain);
             if (hostAddress != null) {
@@ -165,17 +163,17 @@ public class DNSUtil {
         StringBuilder sb = new StringBuilder(100);
         for (String key : internalDNS.keySet()) {
             if (sb.length() > 0) {
-                sb.append(",");
+                sb.append(',');
             }
-            sb.append("{").append(key).append(",");
-            sb.append(internalDNS.get(key).getHost()).append(":");
-            sb.append(internalDNS.get(key).getPort()).append("}");
+            sb.append('{').append(key).append(',');
+            sb.append(internalDNS.get(key).getHost()).append(':');
+            sb.append(internalDNS.get(key).getPort()).append('}');
         }
         return sb.toString();
     }
 
     private static Map<String, HostAddress> decode(String encodedValue) {
-        Map<String, HostAddress> answer = new HashMap<String, HostAddress>();
+        Map<String, HostAddress> answer = new HashMap<>();
         StringTokenizer st = new StringTokenizer(encodedValue, "{},:");
         while (st.hasMoreElements()) {
             String key = st.nextToken();
@@ -194,7 +192,7 @@ public class DNSUtil {
             Attribute srvRecords = dnsLookup.get("SRV");
             if (srvRecords == null) {
                 logger.debug("No SRV record found for domain: " + lookup);
-                return new ArrayList<HostAddress>();
+                return Collections.emptyList();
             }
             WeightedHostAddress[] hosts = new WeightedHostAddress[srvRecords.size()];
             for (int i = 0; i < srvRecords.size(); i++) {
@@ -209,7 +207,38 @@ public class DNSUtil {
         catch (NamingException e) {
             logger.error("Can't process DNS lookup!", e);
         }
-        return new ArrayList<HostAddress>();
+        return Collections.emptyList();
+    }
+
+    /**
+     * Checks if the provided DNS pattern matches the provided name. For example, this method will:
+     * return <em>true</em>  for name: <tt>xmpp.example.org</tt>, pattern: <tt>*.example.org</tt>
+     * return <em>false</em> for name: <tt>xmpp.example.org</tt>, pattern: <tt>example.org</tt>
+     *
+     * This method is not case sensitive.
+     *
+     * @param name The name to check against a pattern (cannot be null or empty).
+     * @param pattern the pattern (cannot be null or empty).
+     * @return true when the name is covered by the pattern, otherwise false.
+     */
+    public static boolean isNameCoveredByPattern( String name, String pattern )
+    {
+        if ( name == null || name.isEmpty() || pattern == null || pattern.isEmpty() )
+        {
+            throw new IllegalArgumentException( "Arguments cannot be null or empty." );
+        }
+
+        final String needle = name.toLowerCase();
+        final String hayStack = pattern.toLowerCase();
+
+        if ( needle.equals( hayStack )) {
+            return true;
+        }
+
+        if ( hayStack.startsWith( "*." ) ) {
+            return needle.endsWith( hayStack.substring( 2 ) );
+        }
+        return false;
     }
 
     /**
@@ -256,15 +285,15 @@ public class DNSUtil {
     }
 
     public static List<WeightedHostAddress> prioritize(WeightedHostAddress[] records) {
-        final List<WeightedHostAddress> result = new LinkedList<WeightedHostAddress>();
+        final List<WeightedHostAddress> result = new LinkedList<>();
 
         // sort by priority (ascending)
-        SortedMap<Integer, Set<WeightedHostAddress>> byPriority = new TreeMap<Integer, Set<WeightedHostAddress>>();
+        SortedMap<Integer, Set<WeightedHostAddress>> byPriority = new TreeMap<>();
         for(final WeightedHostAddress record : records) {
             if (byPriority.containsKey(record.getPriority())) {
                 byPriority.get(record.getPriority()).add(record);
             } else {
-                final Set<WeightedHostAddress> set = new HashSet<WeightedHostAddress>();
+                final Set<WeightedHostAddress> set = new HashSet<>();
                 set.add(record);
                 byPriority.put(record.getPriority(), set);
             }
@@ -273,7 +302,7 @@ public class DNSUtil {
         // now, randomize each priority set by weight.
         for(Map.Entry<Integer, Set<WeightedHostAddress>> weights : byPriority.entrySet()) {
 
-            List<WeightedHostAddress> zeroWeights = new LinkedList<WeightedHostAddress>();
+            List<WeightedHostAddress> zeroWeights = new LinkedList<>();
 
             int totalWeight = 0;
             final Iterator<WeightedHostAddress> i = weights.getValue().iterator();

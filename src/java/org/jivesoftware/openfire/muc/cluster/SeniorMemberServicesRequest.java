@@ -48,22 +48,26 @@ public class SeniorMemberServicesRequest implements ClusterTask {
     public SeniorMemberServicesRequest() {
     }
 
+    @Override
     public Object getResult() {
         return services;
     }
 
+    @Override
     public void run() {
-        services = new ArrayList<ServiceInfo>();
+        services = new ArrayList<>();
         // Get all services and include them in the reply
         for (MultiUserChatService mucService : XMPPServer.getInstance().getMultiUserChatManager().getMultiUserChatServices()) {
             services.add(new ServiceInfo(mucService));
         }
     }
 
+    @Override
     public void writeExternal(ObjectOutput out) throws IOException {
         // Do nothing
     }
 
+    @Override
     public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
         // Do nothing
     }

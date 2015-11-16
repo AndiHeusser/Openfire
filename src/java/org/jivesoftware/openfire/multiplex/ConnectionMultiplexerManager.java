@@ -72,13 +72,13 @@ public class ConnectionMultiplexerManager implements SessionEventListener {
      * Map that keeps track of connection managers and hosted connections.
      * Key: stream ID; Value: Domain of connection manager hosting connection
      */
-    private Map<String, String> streamIDs = new ConcurrentHashMap<String, String>();
+    private Map<String, String> streamIDs = new ConcurrentHashMap<>();
     /**
      * Map that keeps track of connection managers and hosted sessions.
      * Key: Domain of connection manager; Value: Map with Key: stream ID; Value: Client session
      */
     private Map<String, Map<String, LocalClientSession>> sessionsByManager =
-            new ConcurrentHashMap<String, Map<String, LocalClientSession>>();
+            new ConcurrentHashMap<>();
 
     private SessionManager sessionManager;
 
@@ -165,7 +165,7 @@ public class ConnectionMultiplexerManager implements SessionEventListener {
                 synchronized (connectionManagerDomain.intern()) {
                     sessions = sessionsByManager.get(connectionManagerDomain);
                     if (sessions == null) {
-                        sessions = new ConcurrentHashMap<String, LocalClientSession>();
+                        sessions = new ConcurrentHashMap<>();
                         sessionsByManager.put(connectionManagerDomain, sessions);
                     }
                 }
@@ -208,7 +208,7 @@ public class ConnectionMultiplexerManager implements SessionEventListener {
             synchronized (connectionManagerName.intern()) {
                 sessions = sessionsByManager.get(connectionManagerName);
                 if (sessions == null) {
-                    sessions = new ConcurrentHashMap<String, LocalClientSession>();
+                    sessions = new ConcurrentHashMap<>();
                     sessionsByManager.put(connectionManagerName, sessions);
                 }
             }
@@ -318,22 +318,27 @@ public class ConnectionMultiplexerManager implements SessionEventListener {
         }
     }
 
+    @Override
     public void anonymousSessionCreated(Session session) {
         // Do nothing.
     }
 
+    @Override
     public void anonymousSessionDestroyed(Session session) {
         removeSession(session);
     }
 
+    @Override
     public void sessionCreated(Session session) {
         // Do nothing.
     }
 
+    @Override
     public void sessionDestroyed(Session session) {
         removeSession(session);
     }
 
+    @Override
     public void resourceBound(Session session) {
     	// Do nothing.
     }
@@ -362,6 +367,7 @@ public class ConnectionMultiplexerManager implements SessionEventListener {
             this.id = id;
         }
 
+        @Override
         public String getID() {
             return id;
         }

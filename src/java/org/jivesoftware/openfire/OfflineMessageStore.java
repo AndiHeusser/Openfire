@@ -103,7 +103,7 @@ public class OfflineMessageStore extends BasicModule implements UserEventListene
     /**
      * Pool of SAX Readers. SAXReader is not thread safe so we need to have a pool of readers.
      */
-    private BlockingQueue<SAXReader> xmlReaders = new LinkedBlockingQueue<SAXReader>(POOL_SIZE);
+    private BlockingQueue<SAXReader> xmlReaders = new LinkedBlockingQueue<>(POOL_SIZE);
 
     /**
      * Constructs a new offline message store.
@@ -181,7 +181,7 @@ public class OfflineMessageStore extends BasicModule implements UserEventListene
      * @return An iterator of packets containing all offline messages.
      */
     public Collection<OfflineMessage> getMessages(String username, boolean delete) {
-        List<OfflineMessage> messages = new ArrayList<OfflineMessage>();
+        List<OfflineMessage> messages = new ArrayList<>();
         SAXReader xmlReader = null;
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -206,18 +206,27 @@ public class OfflineMessageStore extends BasicModule implements UserEventListene
                     if (matcher.find()) {
                         msgXML = matcher.replaceAll("");
                     }
-                    message = new OfflineMessage(creationDate,
+                    try {
+                    	message = new OfflineMessage(creationDate,
                             xmlReader.read(new StringReader(msgXML)).getRootElement());
+                    } catch (DocumentException de) {
+                    	Log.error("Failed to route packet (offline message): " + msgXML, de);
+                    	continue; // skip and process remaining offline messages
+                    }
                 }
 
-                // Add a delayed delivery (XEP-0203) element to the message.
-                Element delay = message.addChildElement("delay", "urn:xmpp:delay");
-                delay.addAttribute("from", XMPPServer.getInstance().getServerInfo().getXMPPDomain());
-                delay.addAttribute("stamp", XMPPDateTimeFormat.format(creationDate));
-                // Add a legacy delayed delivery (XEP-0091) element to the message. XEP is obsolete and support should be dropped in future.
-                delay = message.addChildElement("x", "jabber:x:delay");
-                delay.addAttribute("from", XMPPServer.getInstance().getServerInfo().getXMPPDomain());
-                delay.addAttribute("stamp", XMPPDateTimeFormat.formatOld(creationDate));
+                // if there is already a delay stamp, we shouldn't add another.
+                Element delaytest = message.getChildElement("delay", "urn:xmpp:delay");
+                if (delaytest == null) {
+                    // Add a delayed delivery (XEP-0203) element to the message.
+                    Element delay = message.addChildElement("delay", "urn:xmpp:delay");
+                    delay.addAttribute("from", XMPPServer.getInstance().getServerInfo().getXMPPDomain());
+                    delay.addAttribute("stamp", XMPPDateTimeFormat.format(creationDate));
+                    // Add a legacy delayed delivery (XEP-0091) element to the message. XEP is obsolete and support should be dropped in future.
+                    delay = message.addChildElement("x", "jabber:x:delay");
+                    delay.addAttribute("from", XMPPServer.getInstance().getServerInfo().getXMPPDomain());
+                    delay.addAttribute("stamp", XMPPDateTimeFormat.formatOld(creationDate));
+                }
                 messages.add(message);
             }
             // Check if the offline messages loaded should be deleted, and that there are
@@ -427,15 +436,18 @@ public class OfflineMessageStore extends BasicModule implements UserEventListene
         return size;
     }
 
+    @Override
     public void userCreated(User user, Map params) {
         //Do nothing
     }
 
+    @Override
     public void userDeleting(User user, Map params) {
         // Delete all offline messages of the user
         deleteMessages(user.getUsername());
     }
 
+    @Override
     public void userModified(User user, Map params) {
         //Do nothing
     }

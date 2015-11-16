@@ -51,17 +51,20 @@ public class HttpSessionManager {
 	private static final Logger Log = LoggerFactory.getLogger(HttpSessionManager.class);
 
     private SessionManager sessionManager;
-    private Map<String, HttpSession> sessionMap = new ConcurrentHashMap<String, HttpSession>(
+    private Map<String, HttpSession> sessionMap = new ConcurrentHashMap<>(
     		JiveGlobals.getIntProperty("xmpp.httpbind.session.initial.count", 16));
     private TimerTask inactivityTask;
     private ThreadPoolExecutor sendPacketPool;
     private SessionListener sessionListener = new SessionListener() {
+        @Override
         public void connectionOpened(HttpSession session, HttpConnection connection) {
         }
 
+        @Override
         public void connectionClosed(HttpSession session, HttpConnection connection) {
         }
 
+        @Override
         public void sessionClosed(HttpSession session) {
             sessionMap.remove(session.getStreamID().getID());
         }
@@ -98,6 +101,7 @@ public class HttpSessionManager {
 			new LinkedBlockingQueue<Runnable>(), // unbounded task queue
 	        new ThreadFactory() { // custom thread factory for BOSH workers
 	            final AtomicInteger counter = new AtomicInteger(1);
+	            @Override
 	            public Thread newThread(Runnable runnable) {
 	                Thread thread = new Thread(Thread.currentThread().getThreadGroup(), runnable,
 	                                    "httpbind-worker-" + counter.getAndIncrement());
@@ -204,14 +208,7 @@ public class HttpSessionManager {
         try {
             connection.deliverBody(createSessionCreationResponse(session), true);
         }
-        catch (HttpConnectionClosedException e) {
-            Log.error("Error creating session.", e);
-            throw new HttpBindException("Internal server error", BoshBindingError.internalServerError);
-        }
-        catch (DocumentException e) {
-            Log.error("Error creating session.", e);
-            throw new HttpBindException("Internal server error", BoshBindingError.internalServerError);
-        } catch (IOException e) {
+        catch (HttpConnectionClosedException | DocumentException | IOException e) {
             Log.error("Error creating session.", e);
             throw new HttpBindException("Internal server error", BoshBindingError.internalServerError);
         }

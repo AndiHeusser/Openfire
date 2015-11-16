@@ -41,9 +41,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.management.JMException;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
-import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManagerFactory;
 
 import org.apache.mina.core.buffer.IoBuffer;
 import org.apache.mina.core.buffer.SimpleBufferAllocator;
@@ -70,13 +68,10 @@ import org.jivesoftware.openfire.container.BasicModule;
 import org.jivesoftware.openfire.container.PluginManager;
 import org.jivesoftware.openfire.container.PluginManagerListener;
 import org.jivesoftware.openfire.http.HttpBindManager;
-import org.jivesoftware.openfire.net.SSLConfig;
-import org.jivesoftware.openfire.net.ServerSocketReader;
-import org.jivesoftware.openfire.net.SocketAcceptThread;
-import org.jivesoftware.openfire.net.SocketConnection;
-import org.jivesoftware.openfire.net.SocketReader;
-import org.jivesoftware.openfire.net.SocketSendingTracker;
-import org.jivesoftware.openfire.net.StalledSessionsFilter;
+import org.jivesoftware.openfire.keystore.IdentityStoreConfig;
+import org.jivesoftware.openfire.keystore.Purpose;
+import org.jivesoftware.openfire.keystore.TrustStoreConfig;
+import org.jivesoftware.openfire.net.*;
 import org.jivesoftware.openfire.nio.ClientConnectionHandler;
 import org.jivesoftware.openfire.nio.ComponentConnectionHandler;
 import org.jivesoftware.openfire.nio.MultiplexerConnectionHandler;
@@ -122,7 +117,7 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
 
     public ConnectionManagerImpl() {
         super("Connection Manager");
-        ports = new ArrayList<ServerPort>(4);
+        ports = new ArrayList<>(4);
     }
 
     private synchronized void createListeners() {
@@ -150,6 +145,7 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
         PluginManager pluginManager = XMPPServer.getInstance().getPluginManager();
         if (!pluginManager.isExecuted()) {
             pluginManager.addPluginManagerListener(new PluginManagerListener() {
+                @Override
                 public void pluginsMonitored() {
                     // Stop listening for plugin events
                     XMPPServer.getInstance().getPluginManager().removePluginManagerListener(this);
@@ -211,7 +207,7 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
             try {
                 serverSocketThread.start();
 
-                List<String> params = new ArrayList<String>();
+                List<String> params = new ArrayList<>();
                 params.add(Integer.toString(serverSocketThread.getPort()));
                 Log.info(LocaleUtils.getLocalizedString("startup.server", params));
             }
@@ -270,7 +266,7 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
 
                 ports.add(new ServerPort(port, serverName, localIPAddress, false, null, ServerPort.Type.connectionManager));
 
-                List<String> params = new ArrayList<String>();
+                List<String> params = new ArrayList<>();
                 params.add(Integer.toString(port));
                 Log.info(LocaleUtils.getLocalizedString("startup.multiplexer", params));
             }
@@ -332,7 +328,7 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
 
                 ports.add(new ServerPort(port, serverName, localIPAddress, false, null, ServerPort.Type.component));
 
-                List<String> params = new ArrayList<String>();
+                List<String> params = new ArrayList<>();
                 params.add(Integer.toString(port));
                 Log.info(LocaleUtils.getLocalizedString("startup.component", params));
             }
@@ -402,7 +398,7 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
 
                 ports.add(new ServerPort(port, serverName, localIPAddress, false, null, ServerPort.Type.client));
 
-                List<String> params = new ArrayList<String>();
+                List<String> params = new ArrayList<>();
                 params.add(Integer.toString(port));
                 Log.info(LocaleUtils.getLocalizedString("startup.plain", params));
             }
@@ -457,15 +453,11 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
 		                  sslSocketAcceptor, maxBufferSize);
 
                 // Add the SSL filter now since sockets are "borned" encrypted in the old ssl method
-                SSLContext sslContext = SSLContext.getInstance(algorithm);
-                KeyManagerFactory keyFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-                keyFactory.init(SSLConfig.getKeyStore(), SSLConfig.getKeyPassword().toCharArray());
-                TrustManagerFactory trustFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-                trustFactory.init(SSLConfig.getc2sTrustStore());
+                final IdentityStoreConfig identityStoreConfig = (IdentityStoreConfig) SSLConfig.getInstance().getStoreConfig( Purpose.SOCKETBASED_IDENTITYSTORE );
+                final TrustStoreConfig trustStoreConfig = (TrustStoreConfig) SSLConfig.getInstance().getStoreConfig( Purpose.SOCKETBASED_C2S_TRUSTSTORE );
 
-                sslContext.init(keyFactory.getKeyManagers(),
-                        trustFactory.getTrustManagers(),
-                        new java.security.SecureRandom());
+                final SSLContext sslContext = SSLContext.getInstance( algorithm );
+                sslContext.init( identityStoreConfig.getKeyManagers(), trustStoreConfig.getTrustManagers(), new java.security.SecureRandom());
 
                 SslFilter sslFilter = new SslFilter(sslContext);
                 if (JiveGlobals.getProperty(ConnectionSettings.Client.AUTH_PER_CLIENTCERT_POLICY,"disabled").equals("needed")) {
@@ -504,7 +496,7 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
 
                 ports.add(new ServerPort(port, serverName, localIPAddress, true, null, ServerPort.Type.client));
 
-                List<String> params = new ArrayList<String>();
+                List<String> params = new ArrayList<>();
                 params.add(Integer.toString(port));
                 Log.info(LocaleUtils.getLocalizedString("startup.ssl", params));
             }
@@ -547,10 +539,12 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
         startClientSSLListeners(localIPAddress);
     }
 
+    @Override
     public Collection<ServerPort> getPorts() {
         return ports;
     }
 
+    @Override
     public SocketReader createSocketReader(Socket sock, boolean isSecure, ServerPort serverPort,
             boolean useBlockingMode) throws IOException {
         if (serverPort.isServerPort()) {
@@ -581,6 +575,7 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
         }
     }
 
+    @Override
     public void enableClientListener(boolean enabled) {
         if (enabled == isClientListenerEnabled()) {
             // Ignore new setting
@@ -599,10 +594,12 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
         }
     }
 
+    @Override
     public boolean isClientListenerEnabled() {
         return JiveGlobals.getBooleanProperty(ConnectionSettings.Client.SOCKET_ACTIVE, true);
     }
 
+    @Override
     public void enableClientSSLListener(boolean enabled) {
         if (enabled == isClientSSLListenerEnabled()) {
             // Ignore new setting
@@ -621,16 +618,16 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
         }
     }
 
+    @Override
     public boolean isClientSSLListenerEnabled() {
         try {
-            return JiveGlobals.getBooleanProperty(ConnectionSettings.Client.ENABLE_OLD_SSLPORT, false) && SSLConfig.getKeyStore().size() > 0;
+            return JiveGlobals.getBooleanProperty(ConnectionSettings.Client.ENABLE_OLD_SSLPORT, false) && SSLConfig.getStore( Purpose.SOCKETBASED_IDENTITYSTORE ).size() > 0;
         } catch (KeyStoreException e) {
-            return false;
-        } catch (IOException e) {
             return false;
         }
     }
 
+    @Override
     public void enableComponentListener(boolean enabled) {
         if (enabled == isComponentListenerEnabled()) {
             // Ignore new setting
@@ -649,10 +646,12 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
         }
     }
 
+    @Override
     public boolean isComponentListenerEnabled() {
         return JiveGlobals.getBooleanProperty(ConnectionSettings.Component.SOCKET_ACTIVE, false);
     }
 
+    @Override
     public void enableServerListener(boolean enabled) {
         if (enabled == isServerListenerEnabled()) {
             // Ignore new setting
@@ -671,10 +670,12 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
         }
     }
 
+    @Override
     public boolean isServerListenerEnabled() {
         return JiveGlobals.getBooleanProperty(ConnectionSettings.Server.SOCKET_ACTIVE, true);
     }
 
+    @Override
     public void enableConnectionManagerListener(boolean enabled) {
         if (enabled == isConnectionManagerListenerEnabled()) {
             // Ignore new setting
@@ -693,10 +694,12 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
         }
     }
 
+    @Override
     public boolean isConnectionManagerListenerEnabled() {
         return JiveGlobals.getBooleanProperty(ConnectionSettings.Multiplex.SOCKET_ACTIVE, false);
     }
 
+    @Override
     public void setClientListenerPort(int port) {
         if (port == getClientListenerPort()) {
             // Ignore new setting
@@ -716,6 +719,7 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
         return socketAcceptor;
     }
 
+    @Override
     public int getClientListenerPort() {
         return JiveGlobals.getIntProperty(ConnectionSettings.Client.PORT, DEFAULT_PORT);
     }
@@ -724,6 +728,7 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
         return sslSocketAcceptor;
     }
 
+    @Override
     public void setClientSSLListenerPort(int port) {
         if (port == getClientSSLListenerPort()) {
             // Ignore new setting
@@ -739,10 +744,12 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
         }
     }
 
+    @Override
     public int getClientSSLListenerPort() {
         return JiveGlobals.getIntProperty(ConnectionSettings.Client.OLD_SSLPORT, DEFAULT_SSL_PORT);
     }
 
+    @Override
     public void setComponentListenerPort(int port) {
         if (port == getComponentListenerPort()) {
             // Ignore new setting
@@ -762,10 +769,12 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
         return componentAcceptor;
     }
 
+    @Override
     public int getComponentListenerPort() {
         return JiveGlobals.getIntProperty(ConnectionSettings.Component.PORT, DEFAULT_COMPONENT_PORT);
     }
 
+    @Override
     public void setServerListenerPort(int port) {
         if (port == getServerListenerPort()) {
             // Ignore new setting
@@ -781,6 +790,7 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
         }
     }
 
+    @Override
     public int getServerListenerPort() {
         return JiveGlobals.getIntProperty(ConnectionSettings.Server.PORT, DEFAULT_SERVER_PORT);
     }
@@ -789,6 +799,7 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
         return multiplexerSocketAcceptor;
     }
 
+    @Override
     public void setConnectionManagerListenerPort(int port) {
         if (port == getConnectionManagerListenerPort()) {
             // Ignore new setting
@@ -804,6 +815,7 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
         }
     }
 
+    @Override
     public int getConnectionManagerListenerPort() {
         return JiveGlobals.getIntProperty(ConnectionSettings.Multiplex.PORT, DEFAULT_MULTIPLEX_PORT);
     }
@@ -812,14 +824,17 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
     // Certificates events
     // #####################################################################
 
+    @Override
     public void certificateCreated(KeyStore keyStore, String alias, X509Certificate cert) {
         restartClientSSLListeners();
     }
 
+    @Override
     public void certificateDeleted(KeyStore keyStore, String alias) {
         restartClientSSLListeners();
     }
 
+    @Override
     public void certificateSigned(KeyStore keyStore, String alias, List<X509Certificate> certificates) {
         restartClientSSLListeners();
     }
@@ -903,7 +918,8 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
     	// optionally register IoSession mbeans (one per session)
     	if (JiveGlobals.getBooleanProperty("xmpp.socket.jmx.sessions", false)) {
 	    	acceptor.addListener(new IoServiceListener() {
-	    	    public void sessionCreated(IoSession session) {
+	    	    @Override
+                public void sessionCreated(IoSession session) {
 	    	        try {
                         IoSessionMBean mbean = new IoSessionMBean(session);
 	    	            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();  
@@ -914,7 +930,8 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
 	    	            Log.warn("Failed to register MINA session mbean (JMX): " + ex);
 	    	        }      
 	    	    }
-	    	    public void sessionDestroyed(IoSession session) {
+	    	    @Override
+                public void sessionDestroyed(IoSession session) {
 	    	        try {
 	    	            ObjectName name = new ObjectName(prefix + ":type=IoSession,name=" + 
 	    	            					session.getRemoteAddress().toString().replace(':', '/'));
@@ -923,10 +940,12 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
 	    	            Log.warn("Failed to unregister MINA session mbean (JMX): " + ex);
 	    	        }      
 	    	    }
+                @Override
                 public void serviceActivated(IoService service) throws Exception { }
+                @Override
                 public void serviceDeactivated(IoService service) throws Exception { }
+                @Override
                 public void serviceIdle(IoService service, IdleStatus idleStatus) throws Exception { }
-				public void sessionClosed(IoSession ioSession) throws Exception { }
 	    	});
     	}
     }
@@ -973,6 +992,7 @@ public class ConnectionManagerImpl extends BasicModule implements ConnectionMana
             this.threadNamePrefix = threadNamePrefix;
         }
 
+        @Override
         public Thread newThread(Runnable runnable)
         {
             Thread t = originalThreadFactory.newThread(runnable);

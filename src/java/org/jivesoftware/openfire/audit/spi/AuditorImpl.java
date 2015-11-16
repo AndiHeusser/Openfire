@@ -27,6 +27,7 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -100,7 +101,7 @@ public class AuditorImpl implements Auditor {
     /**
      * Queue that holds the audited packets that will be later saved to an XML file.
      */
-    private BlockingQueue<AuditPacket> logQueue = new LinkedBlockingQueue<AuditPacket>();
+    private BlockingQueue<AuditPacket> logQueue = new LinkedBlockingQueue<>();
 
     /**
      * Allow only a limited number of files for each day, max. three digits (000-999)
@@ -150,10 +151,12 @@ public class AuditorImpl implements Auditor {
         }
     }
 
+    @Override
     public int getQueuedPacketsNumber() {
         return logQueue.size();
     }
 
+    @Override
     public void audit(Packet packet, Session session) {
         if (auditManager.isEnabled()) {
             if (packet instanceof Message) {
@@ -181,6 +184,7 @@ public class AuditorImpl implements Auditor {
         }
     }
 
+    @Override
     public void stop() {
         // Stop queuing packets since we are being stopped
         closed = true;
@@ -223,6 +227,7 @@ public class AuditorImpl implements Auditor {
     private void ensureMaxTotalSize() {
         // Get list of existing audit files
         FilenameFilter filter = new FilenameFilter() {
+            @Override
             public boolean accept(File dir, String name) {
                 return name.startsWith("jive.audit-") && name.endsWith(".log");
             }
@@ -235,8 +240,9 @@ public class AuditorImpl implements Auditor {
         // Check if total size has been exceeded
         if (totalLength > maxTotalSize) {
             // Sort files by name (chronological order)
-            List<File> sortedFiles = new ArrayList<File>(Arrays.asList(files));
+            List<File> sortedFiles = new ArrayList<>(Arrays.asList(files));
             Collections.sort(sortedFiles, new Comparator<File>() {
+                @Override
                 public int compare(File o1, File o2) {
                     return o1.getName().compareTo(o2.getName());
                 }
@@ -273,6 +279,7 @@ public class AuditorImpl implements Auditor {
 
         // Get list of audit files to delete
         FilenameFilter filter = new FilenameFilter() {
+            @Override
             public boolean accept(File dir, String name) {
                 return name.startsWith("jive.audit-") && name.endsWith(".log") &&
                         name.compareTo(oldestFile) < 0;
@@ -319,7 +326,8 @@ public class AuditorImpl implements Auditor {
    	}
    	// Get list of existing audit files
    	FilenameFilter filter = new FilenameFilter() {
-   		public boolean accept(File dir, String name) {
+  		@Override
+  		public boolean accept(File dir, String name) {
    			return name.startsWith(filePrefix) && name.endsWith(".log");
    		}
    	};
@@ -346,7 +354,7 @@ public class AuditorImpl implements Auditor {
 		currentAuditFile = tmpAuditFile;
 		close();
 		// always append to an existing file (after restart)
-		writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(currentAuditFile, true), "UTF-8"));
+		writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(currentAuditFile, true), StandardCharsets.UTF_8));
 		writer.write("<jive xmlns=\"http://www.jivesoftware.org\">");
 		xmlWriter = new org.jivesoftware.util.XMLWriter(writer);
 	}
@@ -370,7 +378,7 @@ public class AuditorImpl implements Auditor {
     }
 
     private void saveQueuedPackets() {
-        List<AuditPacket> packets = new ArrayList<AuditPacket>(logQueue.size());
+        List<AuditPacket> packets = new ArrayList<>(logQueue.size());
         logQueue.drainTo(packets);
         for (AuditPacket auditPacket : packets) {
             try {

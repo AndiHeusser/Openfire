@@ -66,7 +66,7 @@ public class CacheFactory {
     /**
      * Storage for all caches that get created.
      */
-	private static Map<String, Cache> caches = new ConcurrentHashMap<String, Cache>();
+	private static Map<String, Cache> caches = new ConcurrentHashMap<>();
 	private static List<String> localOnly = Collections.synchronizedList(new ArrayList<String>());
     
     private static String localCacheFactoryClass;
@@ -83,12 +83,12 @@ public class CacheFactory {
      * This map contains property names which were used to store cache configuration data
      * in local xml properties in previous versions.
      */
-    private static final Map<String, String> cacheNames = new HashMap<String, String>();
+    private static final Map<String, String> cacheNames = new HashMap<>();
     /**
      * Default properties to use for local caches. Default properties can be overridden
      * by setting the corresponding system properties.
      */
-    private static final Map<String, Long> cacheProps = new HashMap<String, Long>();
+    private static final Map<String, Long> cacheProps = new HashMap<>();
 
     static {
         localCacheFactoryClass = JiveGlobals.getProperty(LOCAL_CACHE_PROPERTY_NAME,
@@ -334,7 +334,7 @@ public class CacheFactory {
      * @return an array of all caches in the system.
      */
     public static Cache[] getAllCaches() {
-        List<Cache> values = new ArrayList<Cache>();
+        List<Cache> values = new ArrayList<>();
         for (Cache cache : caches.values()) {
             values.add(cache);
         }
@@ -447,12 +447,10 @@ public class CacheFactory {
 	        	clusteredCacheFactoryStrategy = (CacheFactoryStrategy) Class.forName(
 	        			clusteredCacheFactoryClass, true,
 	        			getClusteredCacheStrategyClassLoader()).newInstance();
-	        } catch (NoClassDefFoundError e) {
-	        	log.warn("Clustered cache factory strategy " + clusteredCacheFactoryClass + " not found");
-	        } catch (Exception e) {
+	        } catch (NoClassDefFoundError | Exception e) {
 	        	log.warn("Clustered cache factory strategy " + clusteredCacheFactoryClass + " not found");
 	        }
-    	}
+        }
     	return (clusteredCacheFactoryStrategy != null);
     }
 
@@ -664,24 +662,31 @@ public class CacheFactory {
                     @Override
 					public void run() {
                         XMPPServer.getInstance().addServerListener(new XMPPServerListener() {
+                            @Override
                             public void serverStarted() {}
 
+                            @Override
                             public void serverStopping() {
                                 destroyed = true;
                             }
                         });
                         ClusterManager.addListener(new ClusterEventListener() {
+                            @Override
                             public void joinedCluster() {}
 
+                            @Override
                             public void joinedCluster(byte[] nodeID) {}
 
+                            @Override
                             public void leftCluster() {
                                 destroyed = true;
                                 ClusterManager.removeListener(this);
                             }
 
+                            @Override
                             public void leftCluster(byte[] nodeID) {}
 
+                            @Override
                             public void markedAsSeniorClusterMember() {}
                         });
 

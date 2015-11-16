@@ -47,7 +47,7 @@ import org.slf4j.LoggerFactory;
  *
  * <ul>
  * <li><tt>hybridAuthProvider.primaryProvider = org.jivesoftware.openfire.auth.DefaultAuthProvider</tt></li>
- * <li><tt>hybrodAuthProvider.secondaryProvider = org.jivesoftware.openfire.auth.NativeAuthProvider</tt></li>
+ * <li><tt>hybridAuthProvider.secondaryProvider = org.jivesoftware.openfire.auth.NativeAuthProvider</tt></li>
  * </ul>
  *
  * Each of the chained providers can have a list of override users. If a user is in
@@ -83,13 +83,12 @@ public class HybridAuthProvider implements AuthProvider {
     private AuthProvider secondaryProvider;
     private AuthProvider tertiaryProvider;
 
-    private Set<String> primaryOverrides = new HashSet<String>();
-    private Set<String> secondaryOverrides = new HashSet<String>();
-    private Set<String> tertiaryOverrides = new HashSet<String>();
+    private Set<String> primaryOverrides = new HashSet<>();
+    private Set<String> secondaryOverrides = new HashSet<>();
+    private Set<String> tertiaryOverrides = new HashSet<>();
 
     public HybridAuthProvider() {
         // Convert XML based provider setup to Database based
-        JiveGlobals.migrateProperty("hybridAuthProvider.primaryProvider.className");
         JiveGlobals.migrateProperty("hybridAuthProvider.primaryProvider.className");
         JiveGlobals.migrateProperty("hybridAuthProvider.secondaryProvider.className");
         JiveGlobals.migrateProperty("hybridAuthProvider.tertiaryProvider.className");
@@ -189,14 +188,17 @@ public class HybridAuthProvider implements AuthProvider {
         }
     }
 
+    @Override
     public boolean isPlainSupported() {
         return true;
     }
 
+    @Override
     public boolean isDigestSupported() {
         return false;
     }
 
+    @Override
     public void authenticate(String username, String password) throws UnauthorizedException, ConnectionException, InternalUnauthenticatedException {
         // Check overrides first.
         if (primaryOverrides.contains(username.toLowerCase())) {
@@ -236,25 +238,35 @@ public class HybridAuthProvider implements AuthProvider {
         }
     }
 
+    @Override
     public void authenticate(String username, String token, String digest)
             throws UnauthorizedException
     {
         throw new UnauthorizedException("Digest authentication not supported.");
     }
 
+    @Override
     public String getPassword(String username)
             throws UserNotFoundException, UnsupportedOperationException
     {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public void setPassword(String username, String password)
             throws UserNotFoundException, UnsupportedOperationException
     {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public boolean supportsPasswordRetrieval() {
+        return false;
+    }
+
+    @Override
+    public boolean isScramSupported() {
+        // TODO Auto-generated method stub
         return false;
     }
 }

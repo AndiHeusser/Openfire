@@ -39,7 +39,7 @@ public final class GraphicUtils {
     };
     protected final static MediaTracker tracker = new MediaTracker(component);
 
-    private static Hashtable imageCache = new Hashtable();
+    private static Hashtable<String, Image> imageCache = new Hashtable<>();
 
     private GraphicUtils() {
     }
@@ -169,7 +169,7 @@ public final class GraphicUtils {
             Rectangle screenBounds = screensBounds[i];
             if (screenBounds.x <= x && x <= (screenBounds.x + screenBounds.width)) {
                 Dimension sizeScreen = screenBounds.getSize();
-                sizeScreen.height -= 32;  // Hack to help prevent menu being clipped by Windows/Linux/Solaris Taskbar.
+                sizeScreen.height -= 32;  // Hack to help prevent menu being clipped by Windows/Linux Taskbar.
 
                 int xOffset = 0;
                 if (bottomRightMenu.x > (screenBounds.x + sizeScreen.width))
@@ -355,7 +355,7 @@ public final class GraphicUtils {
                 return null;
             }
 
-            Image image = (Image) imageCache.get(url.toString());
+            Image image = imageCache.get(url.toString());
 
             if (image == null) {
                 image = Toolkit.getDefaultToolkit().createImage(url);

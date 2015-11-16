@@ -57,6 +57,9 @@ import org.eclipse.jetty.webapp.WebAppContext;
 import org.jivesoftware.openfire.Connection;
 import org.jivesoftware.openfire.JMXManager;
 import org.jivesoftware.openfire.XMPPServer;
+import org.jivesoftware.openfire.keystore.IdentityStoreConfig;
+import org.jivesoftware.openfire.keystore.Purpose;
+import org.jivesoftware.openfire.keystore.CertificateStoreConfig;
 import org.jivesoftware.openfire.net.SSLConfig;
 import org.jivesoftware.openfire.session.ConnectionSettings;
 import org.jivesoftware.util.CertificateEventListener;
@@ -122,7 +125,7 @@ public final class HttpBindManager {
 
     public static final int HTTP_BIND_REQUEST_HEADER_SIZE_DEFAULT = 32768;
 
-    public static Map<String, Boolean> HTTP_BIND_ALLOWED_ORIGINS = new HashMap<String, Boolean>();
+    public static Map<String, Boolean> HTTP_BIND_ALLOWED_ORIGINS = new HashMap<>();
 
     private static HttpBindManager instance = new HttpBindManager();
 
@@ -243,21 +246,26 @@ public final class HttpBindManager {
     private void createSSLConnector(int securePort, int bindThreads) {
         httpsConnector = null;
         try {
-            if (securePort > 0 && CertificateManager.isRSACertificate(SSLConfig.getKeyStore(), "*")) {
-                if (!CertificateManager.isRSACertificate(SSLConfig.getKeyStore(),
-                        XMPPServer.getInstance().getServerInfo().getXMPPDomain())) {
+            final IdentityStoreConfig identityStoreConfig = (IdentityStoreConfig) SSLConfig.getInstance().getStoreConfig( Purpose.BOSHBASED_IDENTITYSTORE );
+            final KeyStore keyStore = identityStoreConfig.getStore();
+
+            if (securePort > 0 && identityStoreConfig.getStore().aliases().hasMoreElements() ) {
+                if ( !identityStoreConfig.containsDomainCertificate( "RSA" ) ) {
                     Log.warn("HTTP binding: Using RSA certificates but they are not valid for " +
                             "the hosted domain");
                 }
 
+                final CertificateStoreConfig trustStoreConfig = SSLConfig.getInstance().getStoreConfig( Purpose.BOSHBASED_C2S_TRUSTSTORE );
+
                 final SslContextFactory sslContextFactory = new SslContextFactory();
-                sslContextFactory.addExcludeProtocols("SSLv3");
-                sslContextFactory.setTrustStorePath(SSLConfig.getc2sTruststoreLocation());
-                sslContextFactory.setTrustStorePassword(SSLConfig.getc2sTrustPassword());
-                sslContextFactory.setTrustStoreType(SSLConfig.getStoreType());
-                sslContextFactory.setKeyStorePath(SSLConfig.getKeystoreLocation());
-                sslContextFactory.setKeyStorePassword(SSLConfig.getKeyPassword());
-                sslContextFactory.setKeyStoreType(SSLConfig.getStoreType());
+                sslContextFactory.setTrustStorePath( trustStoreConfig.getCanonicalPath() );
+                sslContextFactory.setTrustStorePassword( trustStoreConfig.getPassword() );
+                sslContextFactory.setTrustStoreType( trustStoreConfig.getType() );
+                sslContextFactory.setKeyStorePath( identityStoreConfig.getCanonicalPath() );
+                sslContextFactory.setKeyStorePassword( identityStoreConfig.getPassword() );
+                sslContextFactory.setKeyStoreType( identityStoreConfig.getType() );
+
+                sslContextFactory.addExcludeProtocols( "SSLv3" );
 
                 // Set policy for checking client certificates
                 String certPol = JiveGlobals.getProperty(HTTP_BIND_AUTH_PER_CLIENTCERT_POLICY, "disabled");
@@ -686,6 +694,7 @@ public final class HttpBindManager {
     /** Listens for changes to Jive properties that affect the HTTP server manager. */
     private class HttpServerPropertyListener implements PropertyEventListener {
 
+        @Override
         public void propertySet(String property, Map<String, Object> params) {
             if (property.equalsIgnoreCase(HTTP_BIND_ENABLED)) {
                 doEnableHttpBind(Boolean.valueOf(params.get("value").toString()));
@@ -717,6 +726,7 @@ public final class HttpBindManager {
             }
         }
 
+        @Override
         public void propertyDeleted(String property, Map<String, Object> params) {
             if (property.equalsIgnoreCase(HTTP_BIND_ENABLED)) {
                 doEnableHttpBind(HTTP_BIND_ENABLED_DEFAULT);
@@ -732,15 +742,18 @@ public final class HttpBindManager {
             }
         }
 
+        @Override
         public void xmlPropertySet(String property, Map<String, Object> params) {
         }
 
+        @Override
         public void xmlPropertyDeleted(String property, Map<String, Object> params) {
         }
     }
 
     private class CertificateListener implements CertificateEventListener {
 
+        @Override
         public void certificateCreated(KeyStore keyStore, String alias, X509Certificate cert) {
             // If new certificate is RSA then (re)start the HTTPS service
             if ("RSA".equals(cert.getPublicKey().getAlgorithm())) {
@@ -748,10 +761,12 @@ public final class HttpBindManager {
             }
         }
 
+        @Override
         public void certificateDeleted(KeyStore keyStore, String alias) {
             restartServer();
         }
 
+        @Override
         public void certificateSigned(KeyStore keyStore, String alias,
                                       List<X509Certificate> certificates) {
             // If new certificate is RSA then (re)start the HTTPS service

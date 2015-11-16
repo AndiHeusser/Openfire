@@ -115,7 +115,7 @@ public class ClearspaceMUCTranscriptManager implements MUCEventListener {
 
     public ClearspaceMUCTranscriptManager(TaskEngine taskEngine) {
         this.taskEngine = taskEngine;
-        roomEvents = new ArrayList<ClearspaceMUCTranscriptEvent>();
+        roomEvents = new ArrayList<>();
 
         String xmppDomain = XMPPServer.getInstance().getServerInfo().getXMPPDomain();
         csMucDomain = ClearspaceManager.MUC_SUBDOMAIN + "." + xmppDomain;
@@ -135,7 +135,7 @@ public class ClearspaceMUCTranscriptManager implements MUCEventListener {
 
                 // Store JIDs of rooms that had presence changes, to track occupant counts
                 // TODO: Refactor out into a different class
-                Set<String> presenceRoomJids = new HashSet<String>();
+                Set<String> presenceRoomJids = new HashSet<>();
 
                 // Create the transcript-update packet
                 IQ packet = new IQ();
@@ -233,30 +233,36 @@ public class ClearspaceMUCTranscriptManager implements MUCEventListener {
         MUCEventDispatcher.removeListener(this);
     }
 
+    @Override
     public void roomCreated(JID roomJID) {
         // Do nothing
     }
 
+    @Override
     public void roomDestroyed(JID roomJID) {
         // Do nothing
     }
 
+    @Override
     public void occupantJoined(JID roomJID, JID user, String nickname) {
         if (isClearspaceRoom(roomJID) && !isRoomOwner(roomJID, user)) {
             addGroupChatEvent(ClearspaceMUCTranscriptEvent.occupantJoined(roomJID, user, new Date().getTime()));
         }
     }
 
+    @Override
     public void occupantLeft(JID roomJID, JID user) {
         if (isClearspaceRoom(roomJID) && !isRoomOwner(roomJID, user)) {
             addGroupChatEvent(ClearspaceMUCTranscriptEvent.occupantLeft(roomJID, user, new Date().getTime()));
         }
     }
 
+    @Override
     public void nicknameChanged(JID roomJID, JID user, String oldNickname, String newNickname) {
         // Do nothing
     }
 
+    @Override
     public void messageReceived(JID roomJID, JID user, String nickname, Message message) {
         if (isClearspaceRoom(roomJID) && !isRoomOwner(roomJID, user)) {
             addGroupChatEvent(ClearspaceMUCTranscriptEvent.messageReceived(roomJID, user, message.getBody(),
@@ -264,9 +270,11 @@ public class ClearspaceMUCTranscriptManager implements MUCEventListener {
         }
     }
 
+    @Override
     public void privateMessageRecieved(JID fromJID, JID toJID, Message message) {
     }
     
+    @Override
     public void roomSubjectChanged(JID roomJID, JID user, String newSubject) {
         if (isClearspaceRoom(roomJID) && !isRoomOwner(roomJID, user)) {
             addGroupChatEvent(ClearspaceMUCTranscriptEvent.roomSubjectChanged(roomJID, user, newSubject,

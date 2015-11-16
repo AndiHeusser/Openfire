@@ -51,7 +51,7 @@ public class TaskEngine {
 
     private Timer timer;
     private ExecutorService executor;
-    private Map<TimerTask, TimerTaskWrapper> wrappedTasks = new ConcurrentHashMap<TimerTask, TimerTaskWrapper>();
+    private Map<TimerTask, TimerTaskWrapper> wrappedTasks = new ConcurrentHashMap<>();
 
     /**
      * Constructs a new task engine.
@@ -62,6 +62,7 @@ public class TaskEngine {
 
             final AtomicInteger threadNumber = new AtomicInteger(1);
 
+            @Override
             public Thread newThread(Runnable runnable) {
                 // Use our own naming scheme for the threads.
                 Thread thread = new Thread(Thread.currentThread().getThreadGroup(), runnable,

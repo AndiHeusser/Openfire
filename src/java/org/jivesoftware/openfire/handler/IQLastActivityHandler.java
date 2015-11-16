@@ -30,7 +30,7 @@ import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.xmpp.packet.IQ;
 import org.xmpp.packet.PacketError;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 
 /**
@@ -115,10 +115,9 @@ public class IQLastActivityHandler extends IQHandler implements ServerFeaturesPr
         return info;
     }
 
+    @Override
     public Iterator<String> getFeatures() {
-        ArrayList<String> features = new ArrayList<String>();
-        features.add("jabber:iq:last");
-        return features.iterator();
+        return Collections.singleton("jabber:iq:last").iterator();
     }
 
     @Override

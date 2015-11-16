@@ -19,14 +19,9 @@
 
 package org.jivesoftware.openfire.nio;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
 import org.apache.mina.core.service.IoHandlerAdapter;
 import org.apache.mina.core.session.IdleStatus;
 import org.apache.mina.core.session.IoSession;
-import org.apache.mina.filter.codec.ProtocolDecoderException;
 import org.dom4j.io.XMPPPacketReader;
 import org.jivesoftware.openfire.Connection;
 import org.jivesoftware.openfire.net.MXParser;
@@ -38,7 +33,7 @@ import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlPullParserFactory;
 import org.xmpp.packet.StreamError;
 
-import javax.net.ssl.SSLHandshakeException;
+import java.nio.charset.StandardCharsets;
 
 /**
  * A ConnectionHandler is responsible for creating new sessions, destroying sessions and delivering
@@ -50,10 +45,6 @@ public abstract class ConnectionHandler extends IoHandlerAdapter {
 
 	private static final Logger Log = LoggerFactory.getLogger(ConnectionHandler.class);
 
-    /**
-     * The utf-8 charset for decoding and encoding Jabber packet streams.
-     */
-    static final String CHARSET = "UTF-8";
     static final String XML_PARSER = "XML-PARSER";
     protected static final String HANDLER = "HANDLER";
     protected static final String CONNECTION = "CONNECTION";
@@ -91,7 +82,7 @@ public abstract class ConnectionHandler extends IoHandlerAdapter {
     @Override
 	public void sessionOpened(IoSession session) throws Exception {
         // Create a new XML parser for the new connection. The parser will be used by the XMPPDecoder filter.
-        final XMLLightweightParser parser = new XMLLightweightParser(CHARSET);
+        final XMLLightweightParser parser = new XMLLightweightParser(StandardCharsets.UTF_8);
         session.setAttribute(XML_PARSER, parser);
         // Create a new NIOConnection for the new session
         final NIOConnection connection = createNIOConnection(session);
@@ -104,14 +95,6 @@ public abstract class ConnectionHandler extends IoHandlerAdapter {
         final int idleTime = getMaxIdleTime() / 2;
         if (idleTime > 0) {
             session.getConfig().setIdleTime(IdleStatus.READER_IDLE, idleTime);
-        }
-    }
-
-    @Override
-    public void inputClosed( IoSession session ) throws Exception {
-        final Connection connection = (Connection) session.getAttribute(CONNECTION);
-        if ( connection != null ) {
-            connection.close( true );
         }
     }
 

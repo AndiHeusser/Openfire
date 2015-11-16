@@ -20,10 +20,9 @@
 
 package org.jivesoftware.openfire.net;
 
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.net.UnknownHostException;
-import java.security.KeyStoreException;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyStore;
 import java.security.Security;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
@@ -49,6 +48,7 @@ import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.auth.AuthFactory;
 import org.jivesoftware.openfire.auth.AuthToken;
 import org.jivesoftware.openfire.auth.AuthorizationManager;
+import org.jivesoftware.openfire.keystore.Purpose;
 import org.jivesoftware.openfire.lockout.LockOutManager;
 import org.jivesoftware.openfire.session.ClientSession;
 import org.jivesoftware.openfire.session.ConnectionSettings;
@@ -87,14 +87,9 @@ public class SASLAuthentication {
     // plus an extra regex alternative to catch a single equals sign ('=', see RFC 6120 6.4.2)
     private static final Pattern BASE64_ENCODED = Pattern.compile("^(=|([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==))$");
 
-    /**
-     * The utf-8 charset for decoding and encoding Jabber packet streams.
-     */
-    protected static String CHARSET = "UTF-8";
-
     private static final String SASL_NAMESPACE = "xmlns=\"urn:ietf:params:xml:ns:xmpp-sasl\"";
 
-    private static Map<String, ElementType> typeMap = new TreeMap<String, ElementType>();
+    private static Map<String, ElementType> typeMap = new TreeMap<>();
 
     private static Set<String> mechanisms = null;
 
@@ -192,21 +187,19 @@ public class SASLAuthentication {
             return null;
         }
 
-        Element mechs = DocumentHelper.createElement(new QName("mechanisms",
-                new Namespace("", "urn:ietf:params:xml:ns:xmpp-sasl")));
+        Element mechs = DocumentHelper.createElement( new QName( "mechanisms",
+                new Namespace( "", "urn:ietf:params:xml:ns:xmpp-sasl" ) ) );
         if (session instanceof LocalIncomingServerSession) {
             // Server connections don't follow the same rules as clients
             if (session.isSecure()) {
-                boolean haveTrustedCertificate = false;
-                try {
-                    LocalIncomingServerSession svr = (LocalIncomingServerSession)session;
-                    X509Certificate trusted = CertificateManager.getEndEntityCertificate(svr.getConnection().getPeerCertificates(), SSLConfig.getKeyStore(), SSLConfig.gets2sTrustStore());
-                    haveTrustedCertificate = trusted != null;
-                    if (trusted != null && svr.getDefaultIdentity() != null) {
-                        haveTrustedCertificate = verifyCertificate(trusted, svr.getDefaultIdentity());
-                    }
-                } catch (IOException ex) {
-                    Log.warn("Exception occurred while trying to determine whether remote certificate is trusted. Treating as untrusted.", ex);
+                LocalIncomingServerSession svr = (LocalIncomingServerSession)session;
+                final KeyStore keyStore   = SSLConfig.getStore( Purpose.SOCKETBASED_IDENTITYSTORE );
+                final KeyStore trustStore = SSLConfig.getStore( Purpose.SOCKETBASED_S2S_TRUSTSTORE );
+                final X509Certificate trusted = CertificateManager.getEndEntityCertificate( svr.getConnection().getPeerCertificates(), keyStore, trustStore );
+
+                boolean haveTrustedCertificate = trusted != null;
+                if (trusted != null && svr.getDefaultIdentity() != null) {
+                    haveTrustedCertificate = verifyCertificate(trusted, svr.getDefaultIdentity());
                 }
                 if (haveTrustedCertificate) {
                     // Offer SASL EXTERNAL only if TLS has already been negotiated and the peer has a trusted cert.
@@ -234,9 +227,8 @@ public class SASLAuthentication {
      * @param doc the stanza sent by the authenticating entity.
      * @return value that indicates whether the authentication has finished either successfully
      *         or not or if the entity is expected to send a response to a challenge.
-     * @throws UnsupportedEncodingException If UTF-8 charset is not supported.
      */
-    public static Status handle(LocalSession session, Element doc) throws UnsupportedEncodingException {
+    public static Status handle(LocalSession session, Element doc) {
         Status status;
         String mechanism;
         if (doc.getNamespace().asXML().equals(SASL_NAMESPACE)) {
@@ -269,13 +261,13 @@ public class SASLAuthentication {
                         // The selected SASL mechanism requires the server to send a challenge
                         // to the client
                         try {
-                            Map<String, String> props = new TreeMap<String, String>();
+                            Map<String, String> props = new TreeMap<>();
                             props.put(Sasl.QOP, "auth");
                             if (mechanism.equals("GSSAPI")) {
                                 props.put(Sasl.SERVER_AUTH, "TRUE");
                             }
                             SaslServer ss = Sasl.createSaslServer(mechanism, "xmpp",
-                                    JiveGlobals.getProperty("xmpp.fqdn", session.getServerName()), props,
+                                    session.getServerName(), props,
                                     new XMPPCallbackHandler());
 
                             if (ss == null) {
@@ -343,9 +335,11 @@ public class SASLAuthentication {
                         if (ss != null) {
                             boolean ssComplete = ss.isComplete();
                             String response = doc.getTextTrim();
-                            if (!BASE64_ENCODED.matcher(response).matches()) {
-                                authenticationFailed(session, Failure.INCORRECT_ENCODING);
-                                return Status.failed;
+                            if (response.length() > 0) {
+                                if (!BASE64_ENCODED.matcher(response).matches()) {
+                                    authenticationFailed(session, Failure.INCORRECT_ENCODING);
+                                    return Status.failed;
+                                }
                             }
                             try {
                                 if (ssComplete) {
@@ -469,7 +463,7 @@ public class SASLAuthentication {
             return false;
         }
         String sharedSecert = getSharedSecret();
-        return StringUtils.hash(sharedSecert).equals(digest);
+        return StringUtils.hash(sharedSecert).equals( digest );
     }
 
 
@@ -511,8 +505,7 @@ public class SASLAuthentication {
         }
     }
 
-    private static Status doExternalAuthentication(LocalSession session, Element doc)
-            throws UnsupportedEncodingException {
+    private static Status doExternalAuthentication(LocalSession session, Element doc) {
         // At this point the connection has already been secured using TLS
 
         if (session instanceof IncomingServerSession) {
@@ -524,7 +517,7 @@ public class SASLAuthentication {
                 return Status.needResponse;
             }
     
-            hostname = new String(StringUtils.decodeBase64(hostname), CHARSET);
+            hostname = new String(StringUtils.decodeBase64(hostname), StandardCharsets.UTF_8);
             if (hostname.length() == 0) {
                 hostname = null;
             }
@@ -555,7 +548,7 @@ public class SASLAuthentication {
             if (!verify) {
                 authenticationSuccessful(session, hostname, null);
                 return Status.authenticated;
-            } else if(verifyCertificates(session.getConnection().getPeerCertificates(), hostname)) {
+            } else if(verifyCertificates(session.getConnection().getPeerCertificates(), hostname, true)) {
                 authenticationSuccessful(session, hostname, null);
                 LocalIncomingServerSession s = (LocalIncomingServerSession)session;
                 if (s != null) {
@@ -565,13 +558,13 @@ public class SASLAuthentication {
             }
         }
         else if (session instanceof LocalClientSession) {
-            // Client EXTERNALL login
+            // Client EXTERNAL login
             Log.debug("SASLAuthentication: EXTERNAL authentication via SSL certs for c2s connection");
             
             // This may be null, we will deal with that later
-            String username = new String(StringUtils.decodeBase64(doc.getTextTrim()), CHARSET);
+            String username = new String(StringUtils.decodeBase64(doc.getTextTrim()), StandardCharsets.UTF_8);
             String principal = "";
-            ArrayList<String> principals = new ArrayList<String>();
+            ArrayList<String> principals = new ArrayList<>();
             Connection connection = session.getConnection();
             if (connection.getPeerCertificates().length < 1) {
                 Log.debug("SASLAuthentication: EXTERNAL authentication requested, but no certificates found.");
@@ -579,18 +572,16 @@ public class SASLAuthentication {
                 return Status.failed; 
             }
 
-            X509Certificate trusted;
-            try {
-                trusted = CertificateManager.getEndEntityCertificate(connection.getPeerCertificates(), SSLConfig.getKeyStore(), SSLConfig.gets2sTrustStore());
-            } catch (IOException e) {
-                trusted = null;
-            }
+            final KeyStore keyStore   = SSLConfig.getStore( Purpose.SOCKETBASED_IDENTITYSTORE );
+            final KeyStore trustStore = SSLConfig.getStore( Purpose.SOCKETBASED_C2S_TRUSTSTORE );
+            final X509Certificate trusted = CertificateManager.getEndEntityCertificate( connection.getPeerCertificates(), keyStore, trustStore );
+
             if (trusted == null) {
                 Log.debug("SASLAuthentication: EXTERNAL authentication requested, but EE cert untrusted.");
                 authenticationFailed(session, Failure.NOT_AUTHORIZED);
                 return Status.failed;
             }
-            principals.addAll(CertificateManager.getPeerIdentities((X509Certificate)trusted));
+            principals.addAll(CertificateManager.getClientIdentities(trusted));
 
             if(principals.size() == 1) {
                 principal = principals.get(0);
@@ -640,7 +631,7 @@ public class SASLAuthentication {
     }
     
     public static boolean verifyCertificate(X509Certificate trustedCert, String hostname) {
-        for (String identity : CertificateManager.getPeerIdentities(trustedCert)) {
+        for (String identity : CertificateManager.getServerIdentities(trustedCert)) {
             // Verify that either the identity is the same as the hostname, or for wildcarded
             // identities that the hostname ends with .domainspecified or -is- domainspecified.
             if ((identity.startsWith("*.")
@@ -653,22 +644,25 @@ public class SASLAuthentication {
         return false;
     }
 
+    /**
+     * @deprecated Use {@link #verifyCertificates(Certificate[], String, boolean)} instead.
+     */
+    @Deprecated
     public static boolean verifyCertificates(Certificate[] chain, String hostname) {
-        try {
-            X509Certificate trusted = CertificateManager.getEndEntityCertificate(chain, SSLConfig.getKeyStore(), SSLConfig.gets2sTrustStore());
+        return verifyCertificates( chain, hostname, true );
+    }
 
-            if (trusted != null) {
-                return verifyCertificate(trusted, hostname);
-            }
-        } catch(IOException e) {
-            Log.warn("Keystore issue while verifying certificate chain: {}", e.getMessage());
+    public static boolean verifyCertificates(Certificate[] chain, String hostname, boolean isS2S) {
+        final KeyStore keyStore   = SSLConfig.getStore( Purpose.SOCKETBASED_IDENTITYSTORE );
+        final KeyStore trustStore = SSLConfig.getStore( isS2S ? Purpose.SOCKETBASED_S2S_TRUSTSTORE : Purpose.SOCKETBASED_C2S_TRUSTSTORE );
+        final X509Certificate trusted = CertificateManager.getEndEntityCertificate( chain, keyStore, trustStore );
+        if (trusted != null) {
+            return verifyCertificate(trusted, hostname);
         }
         return false;
     }
 
-    private static Status doSharedSecretAuthentication(LocalSession session, Element doc)
-            throws UnsupportedEncodingException
-    {
+    private static Status doSharedSecretAuthentication(LocalSession session, Element doc) {
         String secretDigest;
         String response = doc.getTextTrim();
         if (response == null || response.length() == 0) {
@@ -678,7 +672,7 @@ public class SASLAuthentication {
         }
 
         // Parse data and obtain username & password
-        String data = new String(StringUtils.decodeBase64(response), CHARSET);
+        String data = new String(StringUtils.decodeBase64(response), StandardCharsets.UTF_8);
         StringTokenizer tokens = new StringTokenizer(data, "\0");
         tokens.nextToken();
         secretDigest = tokens.nextToken();
@@ -719,12 +713,12 @@ public class SASLAuthentication {
         reply.append("<success xmlns=\"urn:ietf:params:xml:ns:xmpp-sasl\"");
         if (successData != null) {
             String successData_b64 = StringUtils.encodeBase64(successData).trim();
-            reply.append(">").append(successData_b64).append("</success>");
+            reply.append('>').append(successData_b64).append("</success>");
         }
         else {
             reply.append("/>");
         }
-        session.deliverRawText(reply.toString());
+        session.deliverRawText( reply.toString() );
         // We only support SASL for c2s
         if (session instanceof ClientSession) {
             ((LocalClientSession) session).setAuthToken(new AuthToken(username));
@@ -791,7 +785,7 @@ public class SASLAuthentication {
      * @return the list of supported SASL mechanisms by the server.
      */
     public static Set<String> getSupportedMechanisms() {
-        Set<String> answer = new HashSet<String>(mechanisms);
+        Set<String> answer = new HashSet<>(mechanisms);
         // Clean up not-available mechanisms
         for (Iterator<String> it=answer.iterator(); it.hasNext();) {
             String mech = it.next();
@@ -799,6 +793,11 @@ public class SASLAuthentication {
                 // Check if the user provider in use supports passwords retrieval. Accessing
                 // to the users passwords will be required by the CallbackHandler
                 if (!AuthFactory.supportsPasswordRetrieval()) {
+                    it.remove();
+                }
+            }
+            else if (mech.equals("SCRAM-SHA-1")) {
+                if (!AuthFactory.supportsPasswordRetrieval() && !AuthFactory.supportsScram()) {
                     it.remove();
                 }
             }
@@ -825,13 +824,14 @@ public class SASLAuthentication {
         JiveGlobals.migrateProperty("sasl.gssapi.config");
         JiveGlobals.migrateProperty("sasl.gssapi.useSubjectCredsOnly");
 
-        mechanisms = new HashSet<String>();
+        mechanisms = new HashSet<>();
         String available = JiveGlobals.getProperty("sasl.mechs");
         if (available == null) {
             mechanisms.add("ANONYMOUS");
             mechanisms.add("PLAIN");
             mechanisms.add("DIGEST-MD5");
             mechanisms.add("CRAM-MD5");
+            mechanisms.add("SCRAM-SHA-1");
             mechanisms.add("JIVE-SHAREDSECRET");
         }
         else {
@@ -843,6 +843,7 @@ public class SASLAuthentication {
                         mech.equals("PLAIN") ||
                         mech.equals("DIGEST-MD5") ||
                         mech.equals("CRAM-MD5") ||
+                        mech.equals("SCRAM-SHA-1") ||
                         mech.equals("GSSAPI") ||
                         mech.equals("EXTERNAL") ||
                         mech.equals("JIVE-SHAREDSECRET")) 

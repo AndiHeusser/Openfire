@@ -83,7 +83,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
     /**
      * Nodes managed by this manager, table: key nodeID (String); value Node
      */
-    private Map<String, Node> nodes = new ConcurrentHashMap<String, Node>();
+    private Map<String, Node> nodes = new ConcurrentHashMap<>();
     
     /**
      * Keep a registry of the presence's show value of users that subscribed to a node of
@@ -93,7 +93,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
      * is full JID of connected resource and value is show value of the last received presence.
      */
     private Map<String, Map<String, String>> barePresences =
-            new ConcurrentHashMap<String, Map<String, String>>();
+            new ConcurrentHashMap<>();
     
     /**
      * Manager that keeps the list of ad-hoc commands and processing command requests.
@@ -118,13 +118,13 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
      * Bare jids of users that are allowed to create nodes. An empty list means that anyone can
      * create nodes.
      */
-    private Collection<String> allowedToCreate = new CopyOnWriteArrayList<String>();
+    private Collection<String> allowedToCreate = new CopyOnWriteArrayList<>();
 
     /**
      * Bare jids of users that are system administrators of the PubSub service. A sysadmin
      * has the same permissions as a node owner.
      */
-    private Collection<String> sysadmins = new CopyOnWriteArrayList<String>();
+    private Collection<String> sysadmins = new CopyOnWriteArrayList<>();
 
     /**
      * The packet router for the server.
@@ -160,6 +160,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         manager.addCommand(new PendingSubscriptionsCommand(this));
     }
 
+    @Override
     public void process(Packet packet) {
         try {
             // Check if the packet is a disco request or a packet with namespace iq:register
@@ -215,10 +216,12 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         }
     }
 
+    @Override
     public String getServiceID() {
         return "pubsub";
     }
 
+    @Override
     public boolean canCreateNode(JID creator) {
         // Node creation is always allowed for sysadmin
         if (isNodeCreationRestricted() && !isServiceAdmin(creator)) {
@@ -228,23 +231,28 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         return true;
     }
 
+    @Override
     public boolean isServiceAdmin(JID user) {
         return sysadmins.contains(user.toBareJID()) || allowedToCreate.contains(user.toBareJID()) ||
                 InternalComponentManager.getInstance().hasComponent(user);
     }
 
+    @Override
     public boolean isInstantNodeSupported() {
         return true;
     }
 
+    @Override
     public boolean isCollectionNodesSupported() {
         return true;
     }
 
+    @Override
     public CollectionNode getRootCollectionNode() {
         return rootCollectionNode;
     }
 
+    @Override
     public DefaultNodeConfiguration getDefaultNodeConfiguration(boolean leafType) {
         if (leafType) {
             return leafDefaultConfiguration;
@@ -252,14 +260,17 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         return collectionDefaultConfiguration;
     }
 
+    @Override
     public Collection<String> getShowPresences(JID subscriber) {
         return PubSubEngine.getShowPresences(this, subscriber);
     }
 
+    @Override
     public void presenceSubscriptionNotRequired(Node node, JID user) {
         PubSubEngine.presenceSubscriptionNotRequired(this, node, user);
     }
 
+    @Override
     public void presenceSubscriptionRequired(Node node, JID user) {
         PubSubEngine.presenceSubscriptionRequired(this, node, user);
     }
@@ -272,6 +283,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         return serviceName + "." + XMPPServer.getInstance().getServerInfo().getXMPPDomain();
     }
 
+    @Override
     public JID getAddress() {
         // TODO Cache this JID for performance?
         return new JID(null, getServiceDomain(), null);
@@ -305,6 +317,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         return nodeCreationRestricted;
     }
 
+    @Override
     public boolean isMultipleSubscriptionsEnabled() {
         return multipleSubscriptionsEnabled;
     }
@@ -451,7 +464,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         routingTable.addComponentRoute(getAddress(), this);
         // Start the pubsub engine
         engine.start(this);
-        ArrayList<String> params = new ArrayList<String>();
+        ArrayList<String> params = new ArrayList<>();
         params.clear();
         params.add(getServiceDomain());
         Log.info(LocaleUtils.getLocalizedString("startup.starting.pubsub", params));
@@ -510,12 +523,13 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
 		// enableService(true);
     }
 
+    @Override
     public Iterator<DiscoServerItem> getItems() {
         // Check if the service is disabled. Info is not available when disabled.
         if (!isServiceEnabled()) {
             return null;
         }
-        ArrayList<DiscoServerItem> items = new ArrayList<DiscoServerItem>();
+        ArrayList<DiscoServerItem> items = new ArrayList<>();
 		final DiscoServerItem item = new DiscoServerItem(new JID(
 			getServiceDomain()), "Publish-Subscribe service", null, null, this,
 			this);
@@ -523,8 +537,9 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
 		return items.iterator();
     }
 
+    @Override
     public Iterator<Element> getIdentities(String name, String node, JID senderJID) {
-        ArrayList<Element> identities = new ArrayList<Element>();
+        ArrayList<Element> identities = new ArrayList<>();
         if (name == null && node == null) {
             // Answer the identity of the PubSub service
             Element identity = DocumentHelper.createElement("identity");
@@ -548,8 +563,9 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         return identities.iterator();
     }
 
+    @Override
     public Iterator<String> getFeatures(String name, String node, JID senderJID) {
-        ArrayList<String> features = new ArrayList<String>();
+        ArrayList<String> features = new ArrayList<>();
         if (name == null && node == null) {
             // Answer the features of the PubSub service
             features.add("http://jabber.org/protocol/pubsub");
@@ -624,6 +640,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         return features.iterator();
     }
 
+    @Override
     public DataForm getExtendedInfo(String name, String node, JID senderJID) {
         if (name == null && node != null) {
             // Answer the extended info of a given node
@@ -636,6 +653,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         return null;
     }
 
+    @Override
     public boolean hasInfo(String name, String node, JID senderJID) {
         // Check if the service is disabled. Info is not available when disabled.
         if (!isServiceEnabled()) {
@@ -652,12 +670,13 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         return false;
     }
 
+    @Override
     public Iterator<DiscoItem> getItems(String name, String node, JID senderJID) {
         // Check if the service is disabled. Info is not available when disabled.
         if (!isServiceEnabled()) {
             return null;
         }
-        List<DiscoItem> answer = new ArrayList<DiscoItem>();
+        List<DiscoItem> answer = new ArrayList<>();
         String serviceDomain = getServiceDomain();
         if (name == null && node == null) {
             // Answer all first level nodes
@@ -698,6 +717,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         return answer.iterator();
     }
 
+    @Override
     public void broadcast(Node node, Message message, Collection<JID> jids) {
         // TODO Possibly use a thread pool for sending packets (based on the jids size)
         message.setFrom(getAddress());
@@ -709,10 +729,12 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         }
     }
 
+    @Override
     public void send(Packet packet) {
         router.route(packet);
     }
 
+    @Override
     public void sendNotification(Node node, Message message, JID jid) {
         message.setFrom(getAddress());
         message.setTo(jid);
@@ -721,10 +743,12 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         router.route(message);
     }
 
+    @Override
     public Node getNode(String nodeID) {
         return nodes.get(nodeID);
     }
 
+    @Override
     public Collection<Node> getNodes() {
         return nodes.values();
     }
@@ -733,10 +757,12 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         return getNode(nodeID) != null;
     }
 
+    @Override
     public void addNode(Node node) {
         nodes.put(node.getNodeID(), node);
     }
 
+    @Override
     public void removeNode(String nodeID) {
         nodes.remove(nodeID);
     }
@@ -756,20 +782,23 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         for (int i=0; i<array.length; i++) {
             buf.append(array[i]);
             if (i != array.length-1) {
-                buf.append(",");
+                buf.append(',');
             }
         }
         return buf.toString();
     }
 
+    @Override
     public Map<String, Map<String, String>> getBarePresences() {
         return barePresences;
     }
 
+    @Override
     public AdHocCommandManager getManager() {
         return manager;
     }
 
+    @Override
     public void propertySet(String property, Map<String, Object> params) {
         if (property.equals("xmpp.pubsub.enabled")) {
             boolean enabled = Boolean.parseBoolean((String)params.get("value"));
@@ -778,6 +807,7 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         }
     }
 
+    @Override
     public void propertyDeleted(String property, Map<String, Object> params) {
         if (property.equals("xmpp.pubsub.enabled")) {
             // Enable/disable the service
@@ -785,10 +815,12 @@ public class PubSubModule extends BasicModule implements ServerItemsProvider, Di
         }
     }
 
+    @Override
     public void xmlPropertySet(String property, Map<String, Object> params) {
         // Do nothing
     }
 
+    @Override
     public void xmlPropertyDeleted(String property, Map<String, Object> params) {
         // Do nothing
     }
