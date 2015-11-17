@@ -495,8 +495,7 @@ public class LdapManager {
 
         // SSL
         if (sslEnabled) {
-            env.put("java.naming.ldap.factory.socket",
-                    "org.jivesoftware.util.SimpleSSLSocketFactory");
+            env.put("java.naming.ldap.factory.socket", "org.jivesoftware.util.SimpleSSLSocketFactory");
             env.put(Context.SECURITY_PROTOCOL, "ssl");
         }
 
@@ -523,6 +522,7 @@ public class LdapManager {
         if (connectionPoolEnabled) {
             if (!startTlsEnabled) {
                 env.put("com.sun.jndi.ldap.connect.pool", "true");
+                System.setProperty("com.sun.jndi.ldap.connect.pool.protocol", "plain ssl");
             } else {
                 if (debug) {
                     // See http://java.sun.com/products/jndi/tutorial/ldap/connect/pool.html
@@ -534,7 +534,15 @@ public class LdapManager {
         } else {
             env.put("com.sun.jndi.ldap.connect.pool", "false");
         }
+        if (connTimeout > 0) {
+            env.put("com.sun.jndi.ldap.connect.timeout", String.valueOf(connTimeout));
+        } else {
+            env.put("com.sun.jndi.ldap.connect.timeout", "10000");
+        }
 
+        if (readTimeout > 0) {
+            env.put("com.sun.jndi.ldap.read.timeout", String.valueOf(readTimeout));
+        }
         if (followReferrals) {
             env.put(Context.REFERRAL, "follow");
         }
@@ -630,8 +638,7 @@ public class LdapManager {
             env.put(Context.INITIAL_CONTEXT_FACTORY, initialContextFactory);
             env.put(Context.PROVIDER_URL, getProviderURL(baseDN));
             if (sslEnabled) {
-                env.put("java.naming.ldap.factory.socket",
-                        "org.jivesoftware.util.SimpleSSLSocketFactory");
+                env.put("java.naming.ldap.factory.socket", "org.jivesoftware.util.SimpleSSLSocketFactory");
                 env.put(Context.SECURITY_PROTOCOL, "ssl");
             }
 
@@ -647,14 +654,14 @@ public class LdapManager {
                 }
             }
 
-            // Set only on non SSL since SSL connections break with a timeout.
-            if (!sslEnabled) {
-                if (connTimeout > 0) {
+
+
+            if (connTimeout > 0) {
                     env.put("com.sun.jndi.ldap.connect.timeout", String.valueOf(connTimeout));
                 } else {
                     env.put("com.sun.jndi.ldap.connect.timeout", "10000");
                 }
-            }
+
             if (readTimeout > 0) {
                 env.put("com.sun.jndi.ldap.read.timeout", String.valueOf(readTimeout));
             }
@@ -747,11 +754,9 @@ public class LdapManager {
                         env.put(Context.SECURITY_PRINCIPAL, userDN + "," + alternateBaseDN);
                         env.put(Context.SECURITY_CREDENTIALS, password);
                     }
-                    // Specify timeout to be 10 seconds, only on non SSL since SSL connections
-                    // break with a timemout.
-                    if (!sslEnabled) {
+
                         env.put("com.sun.jndi.ldap.connect.timeout", "10000");
-                    }
+
                     if (ldapDebugEnabled) {
                         env.put("com.sun.jndi.ldap.trace.ber", System.err);
                     }
