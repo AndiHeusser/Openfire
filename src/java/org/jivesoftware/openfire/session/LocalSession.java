@@ -20,12 +20,14 @@ import java.net.UnknownHostException;
 import java.security.cert.Certificate;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import javax.net.ssl.SSLSession;
 
 import org.dom4j.Element;
 import org.jivesoftware.openfire.Connection;
+import org.jivesoftware.openfire.RoutingTable;
 import org.jivesoftware.openfire.SessionManager;
 import org.jivesoftware.openfire.StreamID;
 import org.jivesoftware.openfire.XMPPServer;
@@ -34,6 +36,7 @@ import org.jivesoftware.openfire.interceptor.InterceptorManager;
 import org.jivesoftware.openfire.interceptor.PacketRejectedException;
 import org.jivesoftware.openfire.net.SocketConnection;
 import org.jivesoftware.openfire.net.TLSStreamHandler;
+import org.jivesoftware.openfire.spi.RoutingTableImpl;
 import org.jivesoftware.openfire.streammanagement.StreamManager;
 import org.jivesoftware.util.LocaleUtils;
 import org.slf4j.Logger;
@@ -100,14 +103,17 @@ public abstract class LocalSession implements Session {
      */
     protected final StreamManager streamManager;
 
+    private final Locale language;
+
     /**
      * Creates a session with an underlying connection and permission protection.
      *
      * @param serverName domain of the XMPP server where the new session belongs.
      * @param connection The connection we are proxying.
      * @param streamID unique identifier for this session.
+     * @param language The language to use for this session.
      */
-    public LocalSession(String serverName, Connection connection, StreamID streamID) {
+    public LocalSession(String serverName, Connection connection, StreamID streamID, Locale language) {
         if (connection == null) {
             throw new IllegalArgumentException("connection must not be null");
         }
@@ -118,6 +124,7 @@ public abstract class LocalSession implements Session {
         this.address = new JID(null, serverName, id, true);
         this.sessionManager = SessionManager.getInstance();
         this.streamManager = new StreamManager(conn);
+        this.language = language;
     }
 
     /**
@@ -470,4 +477,61 @@ public abstract class LocalSession implements Session {
     	streamManager.setEnabled(true);
 	}
 
+    @Override
+    public final Locale getLanguage() {
+        return language;
+    }
+
+    public static void returnErrorToSender(Packet packet) {
+        RoutingTable routingTable = XMPPServer.getInstance().getRoutingTable();
+        if (packet.getError() != null) {
+            Log.debug("Possible double bounce: " + packet.toXML());
+        }
+        try {
+            if (packet instanceof IQ) {
+                if (((IQ) packet).isResponse()) {
+                        Log.debug("XMPP specs forbid us to respond with an IQ error to: " + packet.toXML());
+                        return;
+                }
+                IQ reply = new IQ();
+                reply.setID(packet.getID());
+                reply.setTo(packet.getFrom());
+                reply.setFrom(packet.getTo());
+                reply.setChildElement(((IQ) packet).getChildElement().createCopy());
+                reply.setType(IQ.Type.error);
+                reply.setError(PacketError.Condition.remote_server_not_found);
+                routingTable.routePacket(reply.getTo(), reply, true);
+            }
+            else if (packet instanceof Presence) {
+                if (((Presence)packet).getType() == Presence.Type.error) {
+                    Log.debug("Double-bounce of presence: " + packet.toXML());
+                    return;
+                }
+                Presence reply = new Presence();
+                reply.setID(packet.getID());
+                reply.setTo(packet.getFrom());
+                reply.setFrom(packet.getTo());
+                reply.setType(Presence.Type.error);
+                reply.setError(PacketError.Condition.remote_server_not_found);
+                routingTable.routePacket(reply.getTo(), reply, true);
+            }
+            else if (packet instanceof Message) {
+                if (((Message)packet).getType() == Message.Type.error){
+                    Log.debug("Double-bounce of message: " + packet.toXML());
+                    return;
+                }
+                Message reply = new Message();
+                reply.setID(packet.getID());
+                reply.setTo(packet.getFrom());
+                reply.setFrom(packet.getTo());
+                reply.setType(Message.Type.error);
+                reply.setThread(((Message)packet).getThread());
+                reply.setError(PacketError.Condition.remote_server_not_found);
+                routingTable.routePacket(reply.getTo(), reply, true);
+            }
+        }
+        catch (Exception e) {
+            Log.error("Error returning error to sender. Original packet: " + packet, e);
+        }
+    }
 }

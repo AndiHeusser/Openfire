@@ -28,18 +28,15 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.UnknownHostException;
+import java.nio.charset.Charset;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
-import java.security.KeyStore;
 import java.security.cert.Certificate;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLPeerUnverifiedException;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.TrustManager;
+import javax.net.ssl.*;
 
 import org.apache.mina.core.buffer.IoBuffer;
 import org.apache.mina.core.filterchain.IoFilterChain;
@@ -51,32 +48,33 @@ import org.jivesoftware.openfire.Connection;
 import org.jivesoftware.openfire.ConnectionCloseListener;
 import org.jivesoftware.openfire.PacketDeliverer;
 import org.jivesoftware.openfire.auth.UnauthorizedException;
-import org.jivesoftware.openfire.keystore.IdentityStoreConfig;
-import org.jivesoftware.openfire.keystore.Purpose;
-import org.jivesoftware.openfire.keystore.TrustStoreConfig;
-import org.jivesoftware.openfire.net.ClientTrustManager;
-import org.jivesoftware.openfire.net.SSLConfig;
-import org.jivesoftware.openfire.net.ServerTrustManager;
-import org.jivesoftware.openfire.session.ConnectionSettings;
+import org.jivesoftware.openfire.keystore.*;
+import org.jivesoftware.openfire.net.*;
 import org.jivesoftware.openfire.session.LocalSession;
 import org.jivesoftware.openfire.session.Session;
-import org.jivesoftware.util.JiveGlobals;
+import org.jivesoftware.openfire.spi.ConnectionConfiguration;
+import org.jivesoftware.openfire.spi.ConnectionType;
+import org.jivesoftware.openfire.spi.EncryptionArtifactFactory;
 import org.jivesoftware.util.XMLWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xmpp.packet.Packet;
 
 /**
- * Implementation of {@link Connection} inteface specific for NIO connections when using
- * the MINA framework.<p>
- *
- * MINA project can be found at <a href="http://mina.apache.org">here</a>.
+ * Implementation of {@link Connection} interface specific for NIO connections when using the Apache MINA framework.
  *
  * @author Gaston Dombiak
+ * @see <a href="http://mina.apache.org">Apache MINA</a>
  */
 public class NIOConnection implements Connection {
 
 	private static final Logger Log = LoggerFactory.getLogger(NIOConnection.class);
+    private ConnectionConfiguration configuration;
+
+    /**
+     * The utf-8 charset for decoding and encoding XMPP packet streams.
+     */
+    public static final String CHARSET = "UTF-8";
 
     private LocalSession session;
     private IoSession ioSession;
@@ -93,7 +91,6 @@ public class NIOConnection implements Connection {
     private int minorVersion = 0;
     private String language = null;
 
-    // TODO Uso el #checkHealth????
     /**
      * TLS policy currently in use for this connection.
      */
@@ -104,7 +101,7 @@ public class NIOConnection implements Connection {
      * Compression policy currently in use for this connection.
      */
     private CompressionPolicy compressionPolicy = CompressionPolicy.disabled;
-    private static ThreadLocal<CharsetEncoder> encoder = new ThreadLocalEncoder();
+    private static final ThreadLocal<CharsetEncoder> encoder = new ThreadLocalEncoder();
 
     /**
      * Flag that specifies if the connection should be considered closed. Closing a NIO connection
@@ -112,7 +109,7 @@ public class NIOConnection implements Connection {
      * keep this flag to avoid using the connection between #close was used and the socket is actually
      * closed.
      */
-    private AtomicReference<State> state = new AtomicReference<State>(State.OPEN);
+    private AtomicReference<State> state = new AtomicReference<>(State.OPEN);
     
     /**
      * Lock used to ensure the integrity of the underlying IoSession (refer to
@@ -125,9 +122,10 @@ public class NIOConnection implements Connection {
      */
     private final ReentrantLock ioSessionLock = new ReentrantLock(true);
 
-    public NIOConnection(IoSession session, PacketDeliverer packetDeliverer) {
+    public NIOConnection( IoSession session, PacketDeliverer packetDeliverer, ConnectionConfiguration configuration ) {
         this.ioSession = session;
         this.backupDeliverer = packetDeliverer;
+        this.configuration = configuration;
     }
 
     @Override
@@ -234,23 +232,21 @@ public class NIOConnection implements Connection {
 
     		if ( session != null ) {
                 session.setStatus( Session.STATUS_CLOSED );
-            }
+                }
 
             try {
-                deliverRawText( flashClient ? "</flash:stream>" : "</stream:stream>" );
+                            deliverRawText( flashClient ? "</flash:stream>" : "</stream:stream>" );
             } catch ( Exception e ) {
                 Log.error("Failed to deliver stream close tag: " + e.getMessage());
-            }
-            
+                }
+
             try {
-            	ioSession.close( true );
+                ioSession.close( true );
             } catch (Exception e) {
                 Log.error("Exception while closing MINA session", e);
             }
-        
             notifyCloseListeners(); // clean up session, etc.
-
-    	}
+        }
     }
 
     @Override
@@ -303,10 +299,7 @@ public class NIOConnection implements Connection {
             	if (!ioSession.isConnected()) {
             		throw new IOException("Connection reset/closed by peer");
             	}
-                XMLWriter xmlSerializer =
-                        new XMLWriter(new ByteBufferWriter(buffer, encoder.get()), new OutputFormat());
-                xmlSerializer.write(packet.getElement());
-                xmlSerializer.flush();
+                buffer.putString(packet.getElement().asXML(), encoder.get());
                 if (flashClient) {
                     buffer.put((byte) '\0');
                 }
@@ -373,65 +366,31 @@ public class NIOConnection implements Connection {
         }
     }
 
-    @Override
+    @Deprecated
+	@Override
     public void startTLS(boolean clientMode, String remoteServer, ClientAuth authentication) throws Exception {
-        final boolean isClientToServer = (remoteServer == null);
+        startTLS( clientMode );
+    }
 
-        Log.debug( "StartTLS: using {}", isClientToServer ? "c2s" : "s2s" );
+    public void startTLS(boolean clientMode) throws Exception {
 
-        final SSLConfig sslConfig = SSLConfig.getInstance();
-        final TrustStoreConfig storeConfig;
-        if (isClientToServer) {
-            storeConfig = (TrustStoreConfig) sslConfig.getStoreConfig( Purpose.SOCKETBASED_C2S_TRUSTSTORE );
-        } else {
-            storeConfig = (TrustStoreConfig) sslConfig.getStoreConfig( Purpose.SOCKETBASED_S2S_TRUSTSTORE );
+        final EncryptionArtifactFactory factory = new EncryptionArtifactFactory( configuration );
+        final SslFilter filter;
+        if ( clientMode )
+        {
+            filter = factory.createClientModeSslFilter();
+        }
+        else
+        {
+            filter = factory.createServerModeSslFilter();
         }
 
-        final TrustManager[] tm;
-        if (clientMode || authentication == ClientAuth.needed || authentication == ClientAuth.wanted) {
-            // We might need to verify a certificate from our peer, so get different TrustManager[]'s
-            final KeyStore ksTrust = storeConfig.getStore();
-            if(isClientToServer) {
-                // Check if we can trust certificates presented by the client
-                tm = new TrustManager[]{new ClientTrustManager(ksTrust)};
-            } else {
-                // Check if we can trust certificates presented by the server
-                tm = new TrustManager[]{new ServerTrustManager(remoteServer, ksTrust, this)};
-            }
-        } else {
-            tm = storeConfig.getTrustManagers();
-        }
-
-        String algorithm = JiveGlobals.getProperty(ConnectionSettings.Client.TLS_ALGORITHM, "TLS");
-        SSLContext tlsContext = SSLContext.getInstance( algorithm );
-
-        final IdentityStoreConfig identityStoreConfig = (IdentityStoreConfig) sslConfig.getStoreConfig( Purpose.SOCKETBASED_IDENTITYSTORE );
-        tlsContext.init( identityStoreConfig.getKeyManagers(), tm, null);
-
-        SslFilter filter = new SslFilter(tlsContext);
-        filter.setUseClientMode(clientMode);
-        // Disable SSLv3 due to POODLE vulnerability.
-        if (clientMode) {
-            filter.setEnabledProtocols(new String[]{"TLSv1", "TLSv1.1", "TLSv1.2"});
-        } else {
-            // ... but accept a SSLv2 Hello when in server mode.
-            filter.setEnabledProtocols(new String[]{"SSLv2Hello", "TLSv1", "TLSv1.1", "TLSv1.2"});
-        }
-        if (authentication == ClientAuth.needed) {
-            filter.setNeedClientAuth(true);
-        }
-        else if (authentication == ClientAuth.wanted) {
-            // Just indicate that we would like to authenticate the client but if client
-            // certificates are self-signed or have no certificate chain then we are still
-            // good
-            filter.setWantClientAuth(true);
-        }
         ioSession.getFilterChain().addBefore(EXECUTOR_FILTER_NAME, TLS_FILTER_NAME, filter);
         ioSession.setAttribute(SslFilter.DISABLE_ENCRYPTION_ONCE, Boolean.TRUE);
 
-        if (!clientMode) {
+        if ( !clientMode ) {
             // Indicate the client that the server is ready to negotiate TLS
-            deliverRawText("<proceed xmlns=\"urn:ietf:params:xml:ns:xmpp-tls\"/>");
+            deliverRawText( "<proceed xmlns=\"urn:ietf:params:xml:ns:xmpp-tls\"/>" );
         }
     }
 
@@ -452,6 +411,11 @@ public class NIOConnection implements Connection {
     }
 
     @Override
+    public ConnectionConfiguration getConfiguration()
+    {
+        return configuration;
+    }
+
     public boolean isFlashClient() {
         return flashClient;
     }
@@ -475,16 +439,6 @@ public class NIOConnection implements Connection {
     public void setXMPPVersion(int majorVersion, int minorVersion) {
         this.majorVersion = majorVersion;
         this.minorVersion = minorVersion;
-    }
-
-    @Override
-    public String getLanguage() {
-        return language;
-    }
-
-    @Override
-    public void setLanaguage(String language) {
-        this.language = language;
     }
 
     @Override

@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import org.jivesoftware.openfire.Connection;
@@ -49,6 +50,7 @@ import org.xmpp.packet.StreamError;
  *
  * @author Gaston Dombiak
  */
+// TODO implement TLS and observe org.jivesoftware.openfire.session.ConnectionSettings.Component.TLS_POLICY
 public class LocalComponentSession extends LocalSession implements ComponentSession {
 
 	private static final Logger Log = LoggerFactory.getLogger(LocalComponentSession.class);
@@ -187,7 +189,7 @@ public class LocalComponentSession extends LocalSession implements ComponentSess
     }
 
     public LocalComponentSession(String serverName, Connection conn, StreamID id) {
-        super(serverName, conn, id);
+        super(serverName, conn, id, Locale.getDefault());
     }
 
     @Override

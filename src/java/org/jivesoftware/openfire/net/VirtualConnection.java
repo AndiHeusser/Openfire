@@ -30,6 +30,7 @@ import org.jivesoftware.openfire.ConnectionCloseListener;
 import org.jivesoftware.openfire.PacketDeliverer;
 import org.jivesoftware.openfire.session.LocalSession;
 import org.jivesoftware.openfire.session.Session;
+import org.jivesoftware.openfire.spi.ConnectionConfiguration;
 import org.jivesoftware.util.LocaleUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,12 +55,6 @@ public abstract class VirtualConnection implements Connection {
             new HashMap<>();
 
    private AtomicReference<State> state = new AtomicReference<State>(State.OPEN);
-
-    @Override
-    public String getLanguage() {
-        // Information not available. Return any value. This is not actually used.
-        return null;
-    }
 
     @Override
     public int getMajorXMPPVersion() {
@@ -134,11 +129,6 @@ public abstract class VirtualConnection implements Connection {
     }
 
     @Override
-    public void setLanaguage(String language) {
-        //Ignore
-    }
-
-    @Override
     public void setCompressionPolicy(CompressionPolicy compressionPolicy) {
         //Ignore
     }
@@ -154,12 +144,16 @@ public abstract class VirtualConnection implements Connection {
         return null;
     }
 
+    @Deprecated
     @Override
     public void startTLS(boolean clientMode, String remoteServer, ClientAuth authentication) throws Exception {
         //Ignore
     }
 
-    @Override
+    public void startTLS(boolean clientMode) throws Exception {
+        //Ignore
+    }
+
     public void addCompression() {
         //Ignore
     }

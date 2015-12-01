@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -45,6 +46,7 @@ import org.jivesoftware.openfire.net.MXParser;
 import org.jivesoftware.openfire.net.SASLAuthentication;
 import org.jivesoftware.openfire.net.VirtualConnection;
 import org.jivesoftware.openfire.session.LocalClientSession;
+import org.jivesoftware.openfire.spi.ConnectionConfiguration;
 import org.jivesoftware.util.JiveConstants;
 import org.jivesoftware.util.JiveGlobals;
 import org.jivesoftware.util.TaskEngine;
@@ -131,8 +133,8 @@ public class HttpSession extends LocalClientSession {
     };
 
     public HttpSession(PacketDeliverer backupDeliverer, String serverName, InetAddress address,
-                       StreamID streamID, long rid, HttpConnection connection) {
-        super(serverName, new HttpVirtualConnection(address), streamID);
+                       StreamID streamID, long rid, HttpConnection connection, Locale language) {
+        super(serverName, new HttpVirtualConnection(address), streamID, language);
         this.isClosed = false;
         this.lastActivity = System.currentTimeMillis();
         this.lastRequestID = rid;
@@ -247,24 +249,6 @@ public class HttpSession extends LocalClientSession {
      */
     public int getHold() {
         return hold;
-    }
-
-    /**
-     * Sets the language this session is using.
-     *
-     * @param language the language this session is using.
-     */
-    public void setLanguage(String language) {
-        this.language = language;
-    }
-
-    /**
-     * Returns the language this session is using.
-     *
-     * @return the language this session is using.
-     */
-    public String getLanguage() {
-        return language;
     }
 
     /**
@@ -1118,6 +1102,7 @@ public class HttpSession extends LocalClientSession {
     public static class HttpVirtualConnection extends VirtualConnection {
 
         private InetAddress address;
+        private ConnectionConfiguration configuration;
 
         public HttpVirtualConnection(InetAddress address) {
             this.address = address;
@@ -1156,6 +1141,11 @@ public class HttpSession extends LocalClientSession {
         @Override
         public void deliverRawText(String text) {
             ((HttpSession) session).deliver(text);
+        }
+
+        @Override
+        public ConnectionConfiguration getConfiguration() {
+            return session.getConnection().getConfiguration();
         }
 
         @Override

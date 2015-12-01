@@ -24,6 +24,7 @@ import java.net.UnknownHostException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.StringTokenizer;
 
@@ -34,12 +35,11 @@ import org.jivesoftware.openfire.XMPPServer;
 import org.jivesoftware.openfire.auth.AuthToken;
 import org.jivesoftware.openfire.auth.UnauthorizedException;
 import org.jivesoftware.openfire.cluster.ClusterManager;
-import org.jivesoftware.openfire.keystore.Purpose;
 import org.jivesoftware.openfire.net.SASLAuthentication;
-import org.jivesoftware.openfire.net.SSLConfig;
 import org.jivesoftware.openfire.net.SocketConnection;
 import org.jivesoftware.openfire.privacy.PrivacyList;
 import org.jivesoftware.openfire.privacy.PrivacyListManager;
+import org.jivesoftware.openfire.spi.ConnectionConfiguration;
 import org.jivesoftware.openfire.streammanagement.StreamManager;
 import org.jivesoftware.openfire.user.PresenceEventDispatcher;
 import org.jivesoftware.openfire.user.UserNotFoundException;
@@ -211,7 +211,7 @@ public class LocalClientSession extends LocalSession implements ClientSession {
         }
 
         // Default language is English ("en").
-        String language = "en";
+        Locale language = Locale.forLanguageTag("en");
         // Default to a version of "0.0". Clients written before the XMPP 1.0 spec may
         // not report a version in which case "0.0" should be assumed (per rfc3920
         // section 4.4.1).
@@ -219,7 +219,7 @@ public class LocalClientSession extends LocalSession implements ClientSession {
         int minorVersion = 0;
         for (int i = 0; i < xpp.getAttributeCount(); i++) {
             if ("lang".equals(xpp.getAttributeName(i))) {
-                language = xpp.getAttributeValue(i);
+                language = Locale.forLanguageTag(xpp.getAttributeValue(i));
             }
             if ("version".equals(xpp.getAttributeName(i))) {
                 try {
@@ -248,20 +248,19 @@ public class LocalClientSession extends LocalSession implements ClientSession {
             }
         }
 
-        // Store language and version information in the connection.
-        connection.setLanaguage(language);
         connection.setXMPPVersion(majorVersion, minorVersion);
+        final ConnectionConfiguration connectionConfiguration = connection.getConfiguration();
 
         // Indicate the TLS policy to use for this connection
         if (!connection.isSecure()) {
             boolean hasCertificates = false;
             try {
-                hasCertificates = SSLConfig.getStore( Purpose.SOCKETBASED_IDENTITYSTORE ).size() > 0;
+                hasCertificates = connectionConfiguration.getIdentityStore().getAllCertificates().size() > 0;
             }
             catch (Exception e) {
                 Log.error(e.getMessage(), e);
             }
-            Connection.TLSPolicy tlsPolicy = getTLSPolicy();
+            Connection.TLSPolicy tlsPolicy = connectionConfiguration.getTlsPolicy();
             if (Connection.TLSPolicy.required == tlsPolicy && !hasCertificates) {
                 Log.error("Client session rejected. TLS is required but no certificates " +
                         "were created.");
@@ -275,10 +274,10 @@ public class LocalClientSession extends LocalSession implements ClientSession {
         }
 
         // Indicate the compression policy to use for this connection
-        connection.setCompressionPolicy(getCompressionPolicy());
+        connection.setCompressionPolicy( connectionConfiguration.getCompressionPolicy() );
 
         // Create a ClientSession for this user.
-        LocalClientSession session = SessionManager.getInstance().createClientSession(connection);
+        LocalClientSession session = SessionManager.getInstance().createClientSession(connection, language);
 
         // Build the start packet response
         StringBuilder sb = new StringBuilder(200);
@@ -413,69 +412,6 @@ public class LocalClientSession extends LocalSession implements ClientSession {
     }
 
     /**
-     * Returns whether TLS is mandatory, optional or is disabled for clients. When TLS is
-     * mandatory clients are required to secure their connections or otherwise their connections
-     * will be closed. On the other hand, when TLS is disabled clients are not allowed to secure
-     * their connections using TLS. Their connections will be closed if they try to secure the
-     * connection. in this last case.
-     *
-     * @return whether TLS is mandatory, optional or is disabled.
-     */
-    public static SocketConnection.TLSPolicy getTLSPolicy() {
-        // Set the TLS policy stored as a system property
-        String policyName = JiveGlobals.getProperty(ConnectionSettings.Client.TLS_POLICY, Connection.TLSPolicy.optional.toString());
-        SocketConnection.TLSPolicy tlsPolicy;
-        try {
-            tlsPolicy = Connection.TLSPolicy.valueOf(policyName);
-        } catch (IllegalArgumentException e) {
-            Log.error("Error parsing xmpp.client.tls.policy: " + policyName, e);
-            tlsPolicy = Connection.TLSPolicy.optional;
-        }
-        return tlsPolicy;
-    }
-
-    /**
-     * Sets whether TLS is mandatory, optional or is disabled for clients. When TLS is
-     * mandatory clients are required to secure their connections or otherwise their connections
-     * will be closed. On the other hand, when TLS is disabled clients are not allowed to secure
-     * their connections using TLS. Their connections will be closed if they try to secure the
-     * connection. in this last case.
-     *
-     * @param policy whether TLS is mandatory, optional or is disabled.
-     */
-    public static void setTLSPolicy(SocketConnection.TLSPolicy policy) {
-        JiveGlobals.setProperty(ConnectionSettings.Client.TLS_POLICY, policy.toString());
-    }
-
-    /**
-     * Returns whether compression is optional or is disabled for clients.
-     *
-     * @return whether compression is optional or is disabled.
-     */
-    public static SocketConnection.CompressionPolicy getCompressionPolicy() {
-        // Set the Compression policy stored as a system property
-        String policyName = JiveGlobals
-                .getProperty(ConnectionSettings.Client.COMPRESSION_SETTINGS, Connection.CompressionPolicy.optional.toString());
-        SocketConnection.CompressionPolicy compressionPolicy;
-        try {
-            compressionPolicy = Connection.CompressionPolicy.valueOf(policyName);
-        } catch (IllegalArgumentException e) {
-            Log.error("Error parsing xmpp.client.compression.policy: " + policyName, e);
-            compressionPolicy = Connection.CompressionPolicy.optional;
-        }
-        return compressionPolicy;
-    }
-
-    /**
-     * Sets whether compression is optional or is disabled for clients.
-     *
-     * @param policy whether compression is optional or is disabled.
-     */
-    public static void setCompressionPolicy(SocketConnection.CompressionPolicy policy) {
-        JiveGlobals.setProperty(ConnectionSettings.Client.COMPRESSION_SETTINGS, policy.toString());
-    }
-
-    /**
      * Returns the Privacy list that overrides the default privacy list. This list affects
      * only this session and only for the duration of the session.
      *
@@ -555,8 +491,8 @@ public class LocalClientSession extends LocalSession implements ClientSession {
      * @param connection The connection we are proxying.
      * @param streamID unique identifier of this session.
      */
-    public LocalClientSession(String serverName, Connection connection, StreamID streamID) {
-        super(serverName, connection, streamID);
+    public LocalClientSession(String serverName, Connection connection, StreamID streamID, Locale language) {
+        super(serverName, connection, streamID, language);
         // Set an unavailable initial presence
         presence = new Presence();
         presence.setType(Presence.Type.unavailable);
